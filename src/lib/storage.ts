@@ -4,6 +4,9 @@ import { FIXED_TEACHERS } from "@/lib/constants";
 export const AUTH_KEY = "dersplus_auth";
 export const DATA_KEY = "dersplus_data";
 export const DATA_READY_KEY = "dersplus_data_ready";
+export const ACCESS_PASSWORD_KEY = "dersplus_access_password";
+
+export const FINANCE_STORAGE_KEYS = [DATA_KEY, DATA_READY_KEY, ACCESS_PASSWORD_KEY] as const;
 
 export const APP_USERS = [
   { username: "hatice", password: "123071", name: "Hatice" },
@@ -205,6 +208,12 @@ export function persistAppData(value: AppData) {
   markDataReady();
 }
 
+export function clearFinanceStorage() {
+  for (const key of FINANCE_STORAGE_KEYS) {
+    localStorage.removeItem(key);
+  }
+}
+
 export function hasStoredAppData(value: unknown): value is Partial<AppData> & {
   students: AppData["students"];
   payments: AppData["payments"];
@@ -213,4 +222,14 @@ export function hasStoredAppData(value: unknown): value is Partial<AppData> & {
   if (!value || typeof value !== "object") return false;
   const data = value as Partial<AppData>;
   return Array.isArray(data.students) && Array.isArray(data.payments) && Array.isArray(data.expenses);
+}
+
+export function hasUserFinanceRecords(value: Partial<AppData> | null | undefined) {
+  if (!value) return false;
+  return (
+    (value.students?.length ?? 0) > 0 ||
+    (value.payments?.length ?? 0) > 0 ||
+    (value.expenses?.length ?? 0) > 0 ||
+    (value.teacherLessons?.length ?? 0) > 0
+  );
 }

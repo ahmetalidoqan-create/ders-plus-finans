@@ -2,7 +2,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -21,9 +20,10 @@ import type {
 import {
   CURRENT_DATA_VERSION,
   DATA_KEY,
+  clearFinanceStorage,
   emptyAppData,
   hasStoredAppData,
-  isDataReady,
+  hasUserFinanceRecords,
   loadJson,
   persistAppData,
   seedData,
@@ -117,14 +117,12 @@ function ensureFixedExpenses(data: AppData): AppData {
 
 function loadInitialData(): AppData {
   const loaded = loadJson<unknown>(DATA_KEY, null);
-  const ready = isDataReady();
-  const base = hasStoredAppData(loaded)
-    ? migrateLoadedData(loaded)
-    : ready
-      ? emptyAppData()
-      : migrateLoadedData(seedData);
+  if (!hasStoredAppData(loaded) || !hasUserFinanceRecords(loaded)) {
+    return emptyAppData(hasStoredAppData(loaded) ? loaded.settings : undefined);
+  }
+  const base = migrateLoadedData(loaded);
   const next = ensureFixedExpenses(base);
-  persistAppData(next);
+  if (next !== base) persistAppData(next);
   return next;
 }
 
@@ -135,10 +133,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setData(next);
     persistAppData(next);
   }, []);
-
-  useEffect(() => {
-    persistAppData(data);
-  }, [data]);
 
   const addStudent = useCallback(
     (student: StudentDraft) => {
@@ -342,8 +336,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const resetDemo = useCallback(() => persist(migrateLoadedData(seedData)), [persist]);
 
   const clearAllData = useCallback(() => {
-    persist(emptyAppData(data.settings));
-  }, [data.settings, persist]);
+    clearFinanceStorage();
+    setData({
+      ...emptyAppData(data.settings),
+      students: [],
+      payments: [],
+      expenses: [],
+      teacherLessons: [],
+    });
+  }, [data.settings]);
 
   const importData = useCallback(
     (incoming: AppData) => {

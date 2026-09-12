@@ -86,11 +86,11 @@ export function SettingsPage() {
   function handleClearAll() {
     if (
       window.confirm(
-        "Tüm demo öğrenci, ödeme, gider ve öğretmen kayıtları silinecek. Kurum ayarlarınız korunacak. Bu işlem geri alınamaz. Devam edilsin mi?",
+        "Tüm öğrenci, ödeme ve gider kayıtları silinecek ve tarayıcı hafızasından kaldırılacak. Sayfa yenilense bile demo veriler geri gelmez. Devam edilsin mi?",
       )
     ) {
       clearAllData();
-      setDemoMessage("Demo veriler silindi. Artık gerçek verilerinizi ekleyebilirsiniz.");
+      setDemoMessage("Kayıtlar silindi. Sayfa yenilense bile demo veriler geri gelmez.");
     }
   }
 
@@ -200,8 +200,8 @@ export function SettingsPage() {
       <div className="card space-y-3 p-6">
         <h2 className="font-semibold">Demo veri</h2>
         <p className="text-sm text-slate-500">
-          Gerçek öğrenci ve finans verilerinizi eklemeye başlamadan önce örnek demo kayıtlarını temizleyin. Kurum
-          ayarlarınız (logo, kurum adı, iletişim bilgileri) korunur.
+          Örnek kayıtları siler ve localStorage içindeki finans verilerini kaldırır. Boş hafızada demo veriler
+          otomatik yüklenmez; sayfa yenilense bile ekran boş kalır.
         </p>
         <div className="flex flex-wrap gap-3">
           <button type="button" className="btn-primary" onClick={handleClearAll}>
