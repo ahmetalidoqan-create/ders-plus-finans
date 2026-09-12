@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -17,6 +18,7 @@ import type {
   Teacher,
   TeacherLesson,
 } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 import {
   CURRENT_DATA_VERSION,
   DATA_KEY,
@@ -28,6 +30,7 @@ import {
   persistAppData,
   seedData,
 } from "@/lib/storage";
+import { deleteSharedAppData, fetchSharedAppData, saveSharedAppData } from "@/lib/sharedStore";
 import { monthKey, todayISO, uid } from "@/lib/format";
 import { FIXED_EXPENSES_UNTIL, withFixedTeachers } from "@/lib/constants";
 import {
@@ -127,12 +130,56 @@ function loadInitialData(): AppData {
 }
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [data, setData] = useState<AppData>(loadInitialData);
 
   const persist = useCallback((next: AppData) => {
     setData(next);
     persistAppData(next);
+    void saveSharedAppData(next);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateSharedData() {
+      const remote = await fetchSharedAppData();
+      if (cancelled) return;
+
+      const local = loadJson<unknown>(DATA_KEY, null);
+      const localData = hasStoredAppData(local) ? migrateLoadedData(local) : emptyAppData();
+
+      if (hasStoredAppData(remote.data) && hasUserFinanceRecords(remote.data)) {
+        const next = ensureFixedExpenses(migrateLoadedData(remote.data));
+        setData(next);
+        persistAppData(next);
+        return;
+      }
+
+      if (remote.exists && !hasUserFinanceRecords(hasStoredAppData(remote.data) ? remote.data : null)) {
+        const settings = hasStoredAppData(remote.data) ? remote.data.settings : undefined;
+        setData(emptyAppData(settings));
+        clearFinanceStorage();
+        return;
+      }
+
+      if (hasUserFinanceRecords(localData)) {
+        setData(localData);
+        persistAppData(localData);
+        void saveSharedAppData(localData);
+      }
+    }
+
+    void hydrateSharedData();
+    const onFocus = () => {
+      void hydrateSharedData();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [user]);
 
   const addStudent = useCallback(
     (student: StudentDraft) => {
@@ -337,6 +384,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const clearAllData = useCallback(() => {
     clearFinanceStorage();
+    void deleteSharedAppData();
     setData({
       ...emptyAppData(data.settings),
       students: [],

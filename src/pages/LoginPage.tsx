@@ -32,7 +32,9 @@ export function LoginPage() {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
             {data.settings.academyName} Finans
           </h1>
-          <p className="mt-1 text-sm text-slate-500">Yetkili kullanıcı adı ve şifre ile giriş yapın.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Hatice ve Ahmet aynı kurum verisini görür. Yetkili kullanıcı adı ve şifre ile giriş yapın.
+          </p>
         </div>
         <form onSubmit={onSubmit} className="card space-y-4 p-6">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
