@@ -7,47 +7,39 @@ import {
   type ReactNode,
 } from "react";
 import type { AdminUser } from "@/types";
-import { ACCESS_PASSWORD_KEY, AUTH_KEY, loadJson, saveJson } from "@/lib/storage";
-
-const SESSION_USER: AdminUser = {
-  email: "",
-  name: "Yönetici",
-};
+import { APP_USERS, AUTH_KEY, loadJson, saveJson } from "@/lib/storage";
 
 type AuthContextValue = {
   user: AdminUser | null;
-  hasPassword: boolean;
-  setAccessPassword: (password: string) => void;
-  login: (password: string) => boolean;
+  login: (username: string, password: string) => boolean;
   logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function readStoredPassword() {
-  return (localStorage.getItem(ACCESS_PASSWORD_KEY) ?? "").trim();
+function toSessionUser(username: string, name: string): AdminUser {
+  return { email: username, name };
+}
+
+function isAllowedSession(user: AdminUser | null): user is AdminUser {
+  if (!user?.email) return false;
+  return APP_USERS.some((account) => account.username === user.email.toLocaleLowerCase("tr"));
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(() => {
-    if (!readStoredPassword()) return null;
-    return loadJson<AdminUser | null>(AUTH_KEY, null);
+    const stored = loadJson<AdminUser | null>(AUTH_KEY, null);
+    return isAllowedSession(stored) ? stored : null;
   });
-  const [hasPassword, setHasPassword] = useState(() => Boolean(readStoredPassword()));
 
-  const setAccessPassword = useCallback((password: string) => {
-    const next = password.trim();
-    localStorage.setItem(ACCESS_PASSWORD_KEY, next);
-    setHasPassword(Boolean(next));
-    setUser(SESSION_USER);
-    saveJson(AUTH_KEY, SESSION_USER);
-  }, []);
-
-  const login = useCallback((password: string) => {
-    const stored = readStoredPassword();
-    if (!stored || password !== stored) return false;
-    setUser(SESSION_USER);
-    saveJson(AUTH_KEY, SESSION_USER);
+  const login = useCallback((username: string, password: string) => {
+    const account = APP_USERS.find(
+      (item) => item.username === username.trim().toLocaleLowerCase("tr") && item.password === password,
+    );
+    if (!account) return false;
+    const next = toSessionUser(account.username, account.name);
+    setUser(next);
+    saveJson(AUTH_KEY, next);
     return true;
   }, []);
 
@@ -56,10 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(AUTH_KEY);
   }, []);
 
-  const value = useMemo(
-    () => ({ user, hasPassword, setAccessPassword, login, logout }),
-    [user, hasPassword, setAccessPassword, login, logout],
-  );
+  const value = useMemo(() => ({ user, login, logout }), [user, login, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

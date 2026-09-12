@@ -6,31 +6,19 @@ import { useAppData } from "@/context/AppDataContext";
 import { getLogoIcon } from "@/lib/logoIcons";
 
 export function LoginPage() {
-  const { user, hasPassword, login, setAccessPassword } = useAuth();
+  const { user, login } = useAuth();
   const { data } = useAppData();
   const LogoIcon = getLogoIcon(data.settings.logoIcon);
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
 
   if (user) return <Navigate to="/" replace />;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!hasPassword) {
-      if (password.trim().length < 4) {
-        setError("Şifre en az 4 karakter olmalı.");
-        return;
-      }
-      if (password !== confirm) {
-        setError("Şifreler eşleşmiyor.");
-        return;
-      }
-      setAccessPassword(password);
-      return;
-    }
-    const ok = login(password);
-    setError(ok ? "" : "Şifre hatalı. Tekrar deneyin.");
+    const ok = login(username, password);
+    setError(ok ? "" : "Kullanıcı adı veya şifre hatalı.");
   }
 
   return (
@@ -44,44 +32,44 @@ export function LoginPage() {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
             {data.settings.academyName} Finans
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {hasPassword ? "Devam etmek için şifrenizi girin." : "İlk girişte panele bir şifre belirleyin."}
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Yetkili kullanıcı adı ve şifre ile giriş yapın.</p>
         </div>
         <form onSubmit={onSubmit} className="card space-y-4 p-6">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
             <Lock size={16} className="text-brand-500" />
-            {hasPassword ? "Şifre ile giriş" : "Şifre oluştur"}
+            Güvenli giriş
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Kullanıcı adı</label>
+            <input
+              className="input"
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Kullanıcı adı"
+              required
+            />
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Şifre</label>
             <input
-              className="input"
-              type="password"
-              autoComplete={hasPassword ? "current-password" : "new-password"}
+              className="input [-webkit-text-security:disc]"
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="current-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              onChange={(e) => setPassword(e.target.value.replace(/\D/g, ""))}
+              placeholder="••••••"
               required
             />
           </div>
-          {!hasPassword ? (
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">Şifre tekrar</label>
-              <input
-                className="input"
-                type="password"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </div>
-          ) : null}
           {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
           <button type="submit" className="btn-primary w-full">
-            {hasPassword ? "Giriş Yap" : "Şifreyi Kaydet ve Gir"} <ArrowRight size={16} />
+            Giriş Yap <ArrowRight size={16} />
           </button>
         </form>
       </div>

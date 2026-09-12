@@ -2,15 +2,13 @@ import type { AppData } from "@/types";
 import { FIXED_TEACHERS } from "@/lib/constants";
 
 export const AUTH_KEY = "dersplus_auth";
-export const ACCESS_PASSWORD_KEY = "dersplus_access_password";
 export const DATA_KEY = "dersplus_data";
-export const CURRENT_DATA_VERSION = 3 as const;
 
-export const DEMO_ADMIN = {
-  email: "admin@dersplus.com",
-  password: "admin123",
-  name: "Admin",
-};
+export const APP_USERS = [
+  { username: "hatice", password: "123071", name: "Hatice" },
+  { username: "ahmet", password: "180760", name: "Ahmet" },
+] as const;
+export const CURRENT_DATA_VERSION = 3 as const;
 
 export const defaultSettings = {
   academyName: "Ders Plus",
