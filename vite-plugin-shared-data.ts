@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Connect, Plugin, PreviewServer, ViteDevServer } from "vite";
+import type { ServerResponse } from "node:http";
+import type { Plugin, PreviewServer, ViteDevServer } from "vite";
 
 const DATA_FILE = path.resolve(process.cwd(), "data", "app-data.json");
 
-function sendJson(res: Connect.ServerResponse, status: number, body: unknown) {
+function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(body));
