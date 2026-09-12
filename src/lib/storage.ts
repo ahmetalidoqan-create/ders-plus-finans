@@ -1,8 +1,9 @@
-import type { AppData } from "@/types";
+import type { AppData, AppSettings } from "@/types";
 import { FIXED_TEACHERS } from "@/lib/constants";
 
 export const AUTH_KEY = "dersplus_auth";
 export const DATA_KEY = "dersplus_data";
+export const DATA_READY_KEY = "dersplus_data_ready";
 
 export const APP_USERS = [
   { username: "hatice", password: "123071", name: "Hatice" },
@@ -162,6 +163,30 @@ export const seedData: AppData = {
   ],
 };
 
+export function emptyAppData(settings?: Partial<AppSettings>): AppData {
+  return {
+    version: CURRENT_DATA_VERSION,
+    settings: {
+      ...defaultSettings,
+      ...settings,
+      fixedExpensesUntil: undefined,
+    },
+    students: [],
+    payments: [],
+    expenses: [],
+    teachers: FIXED_TEACHERS.map((teacher) => ({ ...teacher })),
+    teacherLessons: [],
+  };
+}
+
+export function markDataReady() {
+  localStorage.setItem(DATA_READY_KEY, "1");
+}
+
+export function isDataReady() {
+  return localStorage.getItem(DATA_READY_KEY) === "1";
+}
+
 export function loadJson<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -173,4 +198,19 @@ export function loadJson<T>(key: string, fallback: T): T {
 
 export function saveJson<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+export function persistAppData(value: AppData) {
+  saveJson(DATA_KEY, value);
+  markDataReady();
+}
+
+export function hasStoredAppData(value: unknown): value is Partial<AppData> & {
+  students: AppData["students"];
+  payments: AppData["payments"];
+  expenses: AppData["expenses"];
+} {
+  if (!value || typeof value !== "object") return false;
+  const data = value as Partial<AppData>;
+  return Array.isArray(data.students) && Array.isArray(data.payments) && Array.isArray(data.expenses);
 }

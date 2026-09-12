@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -17,9 +18,18 @@ import type {
   Teacher,
   TeacherLesson,
 } from "@/types";
-import { CURRENT_DATA_VERSION, DATA_KEY, loadJson, saveJson, seedData } from "@/lib/storage";
+import {
+  CURRENT_DATA_VERSION,
+  DATA_KEY,
+  emptyAppData,
+  hasStoredAppData,
+  isDataReady,
+  loadJson,
+  persistAppData,
+  seedData,
+} from "@/lib/storage";
 import { monthKey, todayISO, uid } from "@/lib/format";
-import { FIXED_EXPENSES_UNTIL, FIXED_TEACHERS, withFixedTeachers } from "@/lib/constants";
+import { FIXED_EXPENSES_UNTIL, withFixedTeachers } from "@/lib/constants";
 import {
   applyCollectionToPayments,
   buildInstallmentPlanPayments,
@@ -106,10 +116,15 @@ function ensureFixedExpenses(data: AppData): AppData {
 }
 
 function loadInitialData(): AppData {
-  const loaded = loadJson<(Partial<AppData> & { students?: Student[] }) | null>(DATA_KEY, null);
-  const base = !loaded || !Array.isArray(loaded.students) ? migrateLoadedData(seedData) : migrateLoadedData(loaded);
+  const loaded = loadJson<unknown>(DATA_KEY, null);
+  const ready = isDataReady();
+  const base = hasStoredAppData(loaded)
+    ? migrateLoadedData(loaded)
+    : ready
+      ? emptyAppData()
+      : migrateLoadedData(seedData);
   const next = ensureFixedExpenses(base);
-  if (next !== base) saveJson(DATA_KEY, next);
+  persistAppData(next);
   return next;
 }
 
@@ -118,8 +133,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const persist = useCallback((next: AppData) => {
     setData(next);
-    saveJson(DATA_KEY, next);
+    persistAppData(next);
   }, []);
+
+  useEffect(() => {
+    persistAppData(data);
+  }, [data]);
 
   const addStudent = useCallback(
     (student: StudentDraft) => {
@@ -320,21 +339,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [data, persist],
   );
 
-  const resetDemo = useCallback(() => persist(seedData), [persist]);
+  const resetDemo = useCallback(() => persist(migrateLoadedData(seedData)), [persist]);
 
-  const clearAllData = useCallback(
-    () =>
-      persist({
-        version: CURRENT_DATA_VERSION,
-        settings: { ...data.settings, fixedExpensesUntil: undefined },
-        students: [],
-        payments: [],
-        expenses: [],
-        teachers: FIXED_TEACHERS,
-        teacherLessons: [],
-      }),
-    [data.settings, persist],
-  );
+  const clearAllData = useCallback(() => {
+    persist(emptyAppData(data.settings));
+  }, [data.settings, persist]);
 
   const importData = useCallback(
     (incoming: AppData) => {
