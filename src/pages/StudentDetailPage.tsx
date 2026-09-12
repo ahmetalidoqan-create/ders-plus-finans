@@ -15,6 +15,7 @@ import type { Payment, StudentDraft } from "@/types";
 import { ModalShell } from "@/components/modals/ModalShell";
 import { ReceiptActions } from "@/components/receipt/ReceiptActions";
 import { buildReceiptData, countRemainingInstallments, type ReceiptData } from "@/lib/receipt";
+import { saveReceiptToSupabase } from "@/lib/supabaseRepo";
 
 function paymentLabel(p: Payment) {
   if (p.kind === "down_payment") return "Peşinat";
@@ -26,6 +27,7 @@ export function StudentDetailPage() {
   const { studentId } = useParams<{ studentId: string }>();
   const {
     data,
+    loading,
     updateStudent,
     markPaymentPaid,
     deletePaymentCollection,
@@ -39,6 +41,7 @@ export function StudentDetailPage() {
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
 
   const student = data.students.find((s) => s.id === studentId);
+  if (loading) return null;
   if (!student) return <Navigate to="/ogrenciler" replace />;
 
   const finance = getStudentFinance(student, data.payments);
@@ -189,19 +192,19 @@ export function StudentDetailPage() {
                           <span className="text-xs text-slate-400">{paymentMethodLabel(p.method)}</span>
                           <button
                             type="button"
-                            onClick={() =>
-                              setReceipt(
-                                buildReceiptData({
-                                  student,
-                                  payments: data.payments,
-                                  paidThis: p.amount,
-                                  date: p.paidAt ?? undefined,
-                                  method: p.method,
-                                  description: paymentLabel(p),
-                                  remainingInstallments: countRemainingInstallments(data.payments, student.id),
-                                }),
-                              )
-                            }
+                            onClick={() => {
+                              const next = buildReceiptData({
+                                student,
+                                payments: data.payments,
+                                paidThis: p.amount,
+                                date: p.paidAt ?? undefined,
+                                method: p.method,
+                                description: paymentLabel(p),
+                                remainingInstallments: countRemainingInstallments(data.payments, student.id),
+                              });
+                              setReceipt(next);
+                              void saveReceiptToSupabase(next, student.id);
+                            }}
                             className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
                           >
                             <FileText size={13} /> Makbuz

@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -19,18 +20,13 @@ import type {
   TeacherLesson,
 } from "@/types";
 import { useAuth } from "@/context/AuthContext";
+import { CURRENT_DATA_VERSION, emptyAppData, seedData } from "@/lib/storage";
 import {
-  CURRENT_DATA_VERSION,
-  DATA_KEY,
-  clearFinanceStorage,
-  emptyAppData,
-  hasStoredAppData,
-  hasUserFinanceRecords,
-  loadJson,
-  persistAppData,
-  seedData,
-} from "@/lib/storage";
-import { deleteSharedAppData, fetchSharedAppData, saveSharedAppData } from "@/lib/sharedStore";
+  clearFinanceInSupabase,
+  loadAppDataFromSupabase,
+  subscribeToFinanceChanges,
+  syncAppDataToSupabase,
+} from "@/lib/supabaseRepo";
 import { monthKey, todayISO, uid } from "@/lib/format";
 import { FIXED_EXPENSES_UNTIL, withFixedTeachers } from "@/lib/constants";
 import {
@@ -44,6 +40,8 @@ import {
 
 type AppDataContextValue = {
   data: AppData;
+  loading: boolean;
+  syncError: string | null;
   addStudent: (student: StudentDraft) => void;
   updateStudent: (student: Student) => void;
   addPayment: (payment: Omit<Payment, "id" | "status"> & { status?: Payment["status"] }) => void;
@@ -118,66 +116,60 @@ function ensureFixedExpenses(data: AppData): AppData {
   return { ...data, expenses, settings };
 }
 
-function loadInitialData(): AppData {
-  const loaded = loadJson<unknown>(DATA_KEY, null);
-  if (!hasStoredAppData(loaded) || !hasUserFinanceRecords(loaded)) {
-    return emptyAppData(hasStoredAppData(loaded) ? loaded.settings : undefined);
-  }
-  const base = migrateLoadedData(loaded);
-  const next = ensureFixedExpenses(base);
-  if (next !== base) persistAppData(next);
-  return next;
-}
-
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [data, setData] = useState<AppData>(loadInitialData);
+  const [data, setData] = useState<AppData>(() => emptyAppData());
+  const [loading, setLoading] = useState(true);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const writingRef = useRef(false);
 
   const persist = useCallback((next: AppData) => {
     setData(next);
-    persistAppData(next);
-    void saveSharedAppData(next);
+    writingRef.current = true;
+    void syncAppDataToSupabase(next)
+      .then(() => setSyncError(null))
+      .catch((error: unknown) => {
+        setSyncError(error instanceof Error ? error.message : "Supabase kaydı başarısız.");
+      })
+      .finally(() => {
+        window.setTimeout(() => {
+          writingRef.current = false;
+        }, 400);
+      });
   }, []);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function hydrateSharedData() {
-      const remote = await fetchSharedAppData();
-      if (cancelled) return;
-
-      const local = loadJson<unknown>(DATA_KEY, null);
-      const localData = hasStoredAppData(local) ? migrateLoadedData(local) : emptyAppData();
-
-      if (hasStoredAppData(remote.data) && hasUserFinanceRecords(remote.data)) {
-        const next = ensureFixedExpenses(migrateLoadedData(remote.data));
+    async function hydrate() {
+      try {
+        const remote = migrateLoadedData(await loadAppDataFromSupabase());
+        if (cancelled) return;
+        const next = ensureFixedExpenses(remote);
         setData(next);
-        persistAppData(next);
-        return;
-      }
-
-      if (remote.exists && !hasUserFinanceRecords(hasStoredAppData(remote.data) ? remote.data : null)) {
-        const settings = hasStoredAppData(remote.data) ? remote.data.settings : undefined;
-        setData(emptyAppData(settings));
-        clearFinanceStorage();
-        return;
-      }
-
-      if (hasUserFinanceRecords(localData)) {
-        setData(localData);
-        persistAppData(localData);
-        void saveSharedAppData(localData);
+        setSyncError(null);
+        if (next !== remote) {
+          writingRef.current = true;
+          await syncAppDataToSupabase(next);
+          writingRef.current = false;
+        }
+      } catch (error: unknown) {
+        if (!cancelled) {
+          setSyncError(error instanceof Error ? error.message : "Supabase verileri yüklenemedi.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
-    void hydrateSharedData();
-    const onFocus = () => {
-      void hydrateSharedData();
-    };
-    window.addEventListener("focus", onFocus);
+    void hydrate();
+    const unsubscribe = subscribeToFinanceChanges(() => {
+      if (writingRef.current) return;
+      void hydrate();
+    });
     return () => {
       cancelled = true;
-      window.removeEventListener("focus", onFocus);
+      unsubscribe();
     };
   }, [user]);
 
@@ -383,15 +375,25 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const resetDemo = useCallback(() => persist(migrateLoadedData(seedData)), [persist]);
 
   const clearAllData = useCallback(() => {
-    clearFinanceStorage();
-    void deleteSharedAppData();
-    setData({
+    const next = {
       ...emptyAppData(data.settings),
-      students: [],
-      payments: [],
-      expenses: [],
-      teacherLessons: [],
-    });
+      students: [] as AppData["students"],
+      payments: [] as AppData["payments"],
+      expenses: [] as AppData["expenses"],
+      teacherLessons: [] as AppData["teacherLessons"],
+    };
+    setData(next);
+    writingRef.current = true;
+    void clearFinanceInSupabase(data.settings)
+      .then(() => setSyncError(null))
+      .catch((error: unknown) => {
+        setSyncError(error instanceof Error ? error.message : "Supabase temizliği başarısız.");
+      })
+      .finally(() => {
+        window.setTimeout(() => {
+          writingRef.current = false;
+        }, 400);
+      });
   }, [data.settings]);
 
   const importData = useCallback(
@@ -415,6 +417,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       data,
+      loading,
+      syncError,
       addStudent,
       updateStudent,
       addPayment,
@@ -438,6 +442,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }),
     [
       data,
+      loading,
+      syncError,
       addStudent,
       updateStudent,
       addPayment,

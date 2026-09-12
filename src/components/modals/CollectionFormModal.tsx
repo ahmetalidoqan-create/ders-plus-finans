@@ -11,6 +11,7 @@ import { Avatar } from "@/components/Avatar";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { ReceiptActions } from "@/components/receipt/ReceiptActions";
 import type { ReceiptData } from "@/lib/receipt";
+import { saveReceiptToSupabase } from "@/lib/supabaseRepo";
 
 type Props = {
   students: Student[];
@@ -96,7 +97,7 @@ export function CollectionFormModal({ students, payments, onClose, onCollect, on
     const remainingInstallments = unpaidRows.filter(
       (p) => p.kind === "installment" && p.id !== selectedPayment?.id,
     ).length;
-    setSuccess({
+    const receipt = {
       receiptNo: `DP-${todayISO().replaceAll("-", "")}-${uid("mk").slice(-4).toUpperCase()}`,
       date,
       studentName: selectedStudent.fullName,
@@ -110,7 +111,9 @@ export function CollectionFormModal({ students, payments, onClose, onCollect, on
       paidTotal,
       remaining: Math.max((finance?.total ?? 0) - paidTotal, 0),
       remainingInstallments,
-    });
+    };
+    setSuccess(receipt);
+    void saveReceiptToSupabase(receipt, selectedStudent.id);
   }
 
   if (success) {

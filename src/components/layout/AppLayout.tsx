@@ -25,7 +25,7 @@ export function AppLayout() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
-  const { data } = useAppData();
+  const { data, loading, syncError } = useAppData();
 
   return (
     <div className="flex min-h-screen overflow-x-hidden bg-slate-50">
@@ -63,7 +63,12 @@ export function AppLayout() {
           </div>
         </header>
         <main className="min-w-0 flex-1 p-4 lg:p-6">
-          <Outlet />
+          {syncError ? (
+            <p className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {syncError}
+            </p>
+          ) : null}
+          {loading ? <p className="text-sm text-slate-500">Veriler Supabase üzerinden yükleniyor…</p> : <Outlet />}
         </main>
       </div>
     </div>

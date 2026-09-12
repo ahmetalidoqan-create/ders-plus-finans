@@ -167,8 +167,8 @@ export function SettingsPage() {
         <div>
           <h2 className="font-semibold">Veri yönetimi</h2>
           <p className="text-sm text-slate-500">
-            Tüm kayıtlar tarayıcı LocalStorage içinde tutulur. Verilerinizi JSON olarak yedekleyebilir veya geri
-            yükleyebilirsiniz.
+            Kayıtlar ortak Supabase veritabanında tutulur. Hatice ve Ahmet aynı veriyi görür. İsterseniz JSON
+            olarak yedekleyebilir veya geri yükleyebilirsiniz.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -200,8 +200,7 @@ export function SettingsPage() {
       <div className="card space-y-3 p-6">
         <h2 className="font-semibold">Demo veri</h2>
         <p className="text-sm text-slate-500">
-          Örnek kayıtları siler ve localStorage içindeki finans verilerini kaldırır. Boş hafızada demo veriler
-          otomatik yüklenmez; sayfa yenilense bile ekran boş kalır.
+          Örnek kayıtları Supabase’den siler. Boş veritabanında demo veriler otomatik yüklenmez.
         </p>
         <div className="flex flex-wrap gap-3">
           <button type="button" className="btn-primary" onClick={handleClearAll}>
