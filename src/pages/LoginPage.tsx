@@ -1,31 +1,36 @@
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Lock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useAppData } from "@/context/AppDataContext";
-import { DEMO_ADMIN } from "@/lib/storage";
 import { getLogoIcon } from "@/lib/logoIcons";
 
 export function LoginPage() {
-  const { user, login } = useAuth();
+  const { user, hasPassword, login, setAccessPassword } = useAuth();
   const { data } = useAppData();
   const LogoIcon = getLogoIcon(data.settings.logoIcon);
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
 
   if (user) return <Navigate to="/" replace />;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const ok = login(email, password);
-    setError(ok ? "" : "E-posta veya şifre hatalı.");
-  }
-
-  function demoLogin() {
-    setEmail(DEMO_ADMIN.email);
-    setPassword(DEMO_ADMIN.password);
-    login(DEMO_ADMIN.email, DEMO_ADMIN.password);
+    if (!hasPassword) {
+      if (password.trim().length < 4) {
+        setError("Şifre en az 4 karakter olmalı.");
+        return;
+      }
+      if (password !== confirm) {
+        setError("Şifreler eşleşmiyor.");
+        return;
+      }
+      setAccessPassword(password);
+      return;
+    }
+    const ok = login(password);
+    setError(ok ? "" : "Şifre hatalı. Tekrar deneyin.");
   }
 
   return (
@@ -40,41 +45,43 @@ export function LoginPage() {
             {data.settings.academyName} Finans
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Öğrenci takip ve finansal yönetim paneli
+            {hasPassword ? "Devam etmek için şifrenizi girin." : "İlk girişte panele bir şifre belirleyin."}
           </p>
         </div>
         <form onSubmit={onSubmit} className="card space-y-4 p-6">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">E-posta</label>
-            <input
-              className="input"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@dersplus.com"
-              required
-            />
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <Lock size={16} className="text-brand-500" />
+            {hasPassword ? "Şifre ile giriş" : "Şifre oluştur"}
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Şifre</label>
             <input
               className="input"
               type="password"
-              autoComplete="current-password"
+              autoComplete={hasPassword ? "current-password" : "new-password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
             />
           </div>
+          {!hasPassword ? (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Şifre tekrar</label>
+              <input
+                className="input"
+                type="password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder="••••••••"
+                required
+              />
+            </div>
+          ) : null}
           {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
           <button type="submit" className="btn-primary w-full">
-            Giriş Yap <ArrowRight size={16} />
-          </button>
-          <button type="button" onClick={demoLogin} className="btn-secondary w-full">
-            <Sparkles size={16} className="text-brand-500" />
-            Demo Girişi Yap
+            {hasPassword ? "Giriş Yap" : "Şifreyi Kaydet ve Gir"} <ArrowRight size={16} />
           </button>
         </form>
       </div>

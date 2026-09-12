@@ -51,7 +51,6 @@ export function AppLayout() {
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold">{user?.name}</p>
-              <p className="text-xs text-slate-500">{user?.email}</p>
             </div>
             <button
               type="button"
@@ -59,7 +58,7 @@ export function AppLayout() {
               className="btn-secondary shrink-0 px-3 py-2"
             >
               <LogOut size={16} />
-              <span className="hidden sm:inline">Çıkış</span>
+              <span className="hidden sm:inline">Çıkış Yap</span>
             </button>
           </div>
         </header>

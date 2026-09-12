@@ -2,6 +2,7 @@ import type { AppData } from "@/types";
 import { FIXED_TEACHERS } from "@/lib/constants";
 
 export const AUTH_KEY = "dersplus_auth";
+export const ACCESS_PASSWORD_KEY = "dersplus_access_password";
 export const DATA_KEY = "dersplus_data";
 export const CURRENT_DATA_VERSION = 3 as const;
 
