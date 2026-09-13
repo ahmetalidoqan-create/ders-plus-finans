@@ -33,7 +33,7 @@ export function ClassroomRevenueTable() {
         <div>
           <h3 className="font-semibold">Sınıf Bazlı Ciro Tablosu</h3>
           <p className="text-sm text-slate-500">
-            {formatMonthLong(month)} dönemi — o ay vadesi gelen taksitlerin toplamı ve tahsilat
+            {formatMonthLong(month)} dönemi — o ayın taksitleri ve önceki aylardan kalan açık taksitler
           </p>
         </div>
         <input

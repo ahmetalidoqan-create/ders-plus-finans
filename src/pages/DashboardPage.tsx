@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { formatDate, formatMoney } from "@/lib/format";
-import { getCashBankSummary, getDashboardStats, getOverduePayments, getUpcomingPayments } from "@/lib/finance";
+import { getCashBankSummary, getDashboardStats, getOverdueByStudent, getUpcomingPayments } from "@/lib/finance";
 import { StudentFormModal } from "@/components/modals/StudentFormModal";
 import { CollectionFormModal } from "@/components/modals/CollectionFormModal";
 import { ExpenseFormModal } from "@/components/modals/ExpenseFormModal";
@@ -35,7 +35,7 @@ export function DashboardPage() {
   const stats = useMemo(() => getDashboardStats(data), [data]);
   const cashBank = useMemo(() => getCashBankSummary(data), [data]);
   const upcoming = useMemo(() => getUpcomingPayments(data, range), [data, range]);
-  const overdue = useMemo(() => getOverduePayments(data), [data]);
+  const overdue = useMemo(() => getOverdueByStudent(data), [data]);
 
   function findStudent(id: string): Student | undefined {
     return data.students.find((s) => s.id === id);
@@ -175,22 +175,24 @@ export function DashboardPage() {
             </Link>
           </div>
           <div className="space-y-2">
-            {overdue.slice(0, 6).map((p) => {
-              const student = findStudent(p.studentId);
+            {overdue.slice(0, 6).map((row) => {
+              const student = findStudent(row.studentId);
               return (
                 <Link
-                  key={p.id}
-                  to={`/ogrenciler/${p.studentId}`}
+                  key={row.studentId}
+                  to={`/ogrenciler/${row.studentId}`}
                   className="flex items-center justify-between rounded-xl bg-red-50 px-3 py-2.5 transition hover:bg-red-100"
                 >
                   <div className="flex items-center gap-3">
                     <Avatar name={student?.fullName ?? "—"} photoUrl={student?.photoUrl} size={32} />
                     <div>
                       <p className="text-sm font-medium text-slate-900">{student?.fullName ?? "—"}</p>
-                      <p className="text-xs text-slate-500">Vade: {formatDate(p.dueDate)}</p>
+                      <p className="text-xs text-slate-500">
+                        {row.count} taksit gecikti
+                      </p>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-red-600">{formatMoney(p.amount)}</p>
+                  <p className="text-sm font-semibold text-red-600">{formatMoney(row.total)}</p>
                 </Link>
               );
             })}

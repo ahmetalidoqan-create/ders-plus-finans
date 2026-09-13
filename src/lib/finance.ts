@@ -169,14 +169,22 @@ function periodBucket(dateStr: string, granularity: PeriodGranularity) {
   return granularity === "month" ? monthKey(dateStr) : dateStr.slice(0, 4);
 }
 
+function unpaidCarryover(payments: Payment[], month: string) {
+  return payments.filter((p) => p.status !== "paid" && monthKey(p.dueDate) < month);
+}
+
 export function getPeriodReport(data: AppData, granularity: PeriodGranularity): PeriodReport {
-  const bucket = periodBucket(todayISO(), granularity);
+  const today = todayISO();
+  const bucket = periodBucket(today, granularity);
   const due = data.payments.filter((p) => periodBucket(p.dueDate, granularity) === bucket);
-  const expected = due.reduce((sum, p) => sum + p.amount, 0);
+  const carryover = granularity === "month" ? unpaidCarryover(data.payments, monthKey(today)) : [];
+  const expected = due.reduce((sum, p) => sum + p.amount, 0) + carryover.reduce((sum, p) => sum + p.amount, 0);
   const realized = data.payments
     .filter((p) => p.paidAt && periodBucket(p.paidAt, granularity) === bucket)
     .reduce((sum, p) => sum + p.amount, 0);
-  const remaining = due.filter((p) => p.status !== "paid").reduce((sum, p) => sum + p.amount, 0);
+  const remaining =
+    due.filter((p) => p.status !== "paid").reduce((sum, p) => sum + p.amount, 0) +
+    carryover.reduce((sum, p) => sum + p.amount, 0);
   const expenses = data.expenses
     .filter((e) => periodBucket(e.date, granularity) === bucket)
     .reduce((sum, e) => sum + e.amount, 0);
@@ -304,6 +312,35 @@ export function getOverduePayments(data: AppData) {
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
 
+export type OverdueStudentSummary = {
+  studentId: string;
+  count: number;
+  total: number;
+  oldestDue: string;
+};
+
+export function getOverdueByStudent(data: AppData): OverdueStudentSummary[] {
+  const groups = new Map<string, OverdueStudentSummary>();
+  for (const payment of getOverduePayments(data)) {
+    const existing = groups.get(payment.studentId);
+    if (!existing) {
+      groups.set(payment.studentId, {
+        studentId: payment.studentId,
+        count: 1,
+        total: payment.amount,
+        oldestDue: payment.dueDate,
+      });
+      continue;
+    }
+    existing.count += 1;
+    existing.total += payment.amount;
+    if (payment.dueDate < existing.oldestDue) existing.oldestDue = payment.dueDate;
+  }
+  return Array.from(groups.values()).sort(
+    (a, b) => b.total - a.total || a.oldestDue.localeCompare(b.oldestDue),
+  );
+}
+
 export function computeTeacherAccrual(
   payType: TeacherPayType,
   monthlySalary: number,
@@ -352,7 +389,11 @@ export function getClassroomRevenueRows(data: AppData, month: string): Classroom
     const studentCount = active.length;
     const ids = new Set(students.map((s) => s.id));
     const expectedMonthly = data.payments
-      .filter((p) => ids.has(p.studentId) && monthKey(p.dueDate) === month)
+      .filter(
+        (p) =>
+          ids.has(p.studentId) &&
+          (monthKey(p.dueDate) === month || (p.status !== "paid" && monthKey(p.dueDate) < month)),
+      )
       .reduce((sum, p) => sum + p.amount, 0);
     const collected = data.payments
       .filter((p) => p.status === "paid" && p.paidAt && monthKey(p.paidAt) === month && ids.has(p.studentId))
