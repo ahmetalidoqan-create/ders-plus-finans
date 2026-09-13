@@ -30,6 +30,7 @@ export function StatementSheet({ data }: Props) {
       <div className="grid grid-cols-2 gap-3 px-8 py-5 text-sm">
         <Info label="Öğrenci" value={data.student.fullName} />
         <Info label="Sınıf" value={data.student.classroom || "—"} />
+        <Info label="Veli adı" value={data.student.parentName || "—"} />
         <Info label="Anne telefonu" value={data.student.parentPhone || "—"} />
         <Info label="Baba telefonu" value={data.student.phone || "—"} />
       </div>

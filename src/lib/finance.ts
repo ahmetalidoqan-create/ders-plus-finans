@@ -201,9 +201,9 @@ function periodBucket(dateStr: string, granularity: PeriodGranularity) {
   return granularity === "month" ? monthKey(dateStr) : dateStr.slice(0, 4);
 }
 
-function unpaidCarryover(payments: Payment[], month: string, students: Student[]) {
+function overdueCarryover(payments: Payment[], month: string, students: Student[]) {
   return payments.filter(
-    (p) => p.status !== "paid" && monthKey(p.dueDate) < month && !isPaymentPaused(p, students),
+    (p) => p.status === "overdue" && monthKey(p.dueDate) < month && !isPaymentPaused(p, students),
   );
 }
 
@@ -213,8 +213,8 @@ export function getPeriodReport(data: AppData, granularity: PeriodGranularity): 
   const due = data.payments.filter(
     (p) => periodBucket(p.dueDate, granularity) === bucket && !isPaymentPaused(p, data.students),
   );
-  const carryover = granularity === "month" ? unpaidCarryover(data.payments, monthKey(today), data.students) : [];
-  const expected = due.reduce((sum, p) => sum + p.amount, 0) + carryover.reduce((sum, p) => sum + p.amount, 0);
+  const carryover = granularity === "month" ? overdueCarryover(data.payments, monthKey(today), data.students) : [];
+  const expected = due.reduce((sum, p) => sum + p.amount, 0);
   const realized = data.payments
     .filter((p) => p.paidAt && periodBucket(p.paidAt, granularity) === bucket)
     .reduce((sum, p) => sum + p.amount, 0);
@@ -435,7 +435,7 @@ export function getClassroomRevenueRows(data: AppData, month: string): Classroom
         (p) =>
           ids.has(p.studentId) &&
           !isPaymentPaused(p, data.students) &&
-          (monthKey(p.dueDate) === month || (p.status !== "paid" && monthKey(p.dueDate) < month)),
+          (monthKey(p.dueDate) === month || (p.status === "overdue" && monthKey(p.dueDate) < month)),
       )
       .reduce((sum, p) => sum + p.amount, 0);
     const collected = data.payments

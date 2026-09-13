@@ -14,7 +14,7 @@ export function InstallmentPlanModal({ student, onClose, onSubmit }: Props) {
   const [downPayment, setDownPayment] = useState("0");
   const [installmentCount, setInstallmentCount] = useState(String(student.installmentCount || 9));
   const [firstInstallmentDate, setFirstInstallmentDate] = useState(
-    student.firstInstallmentDate ?? todayISO(),
+    student.firstInstallmentDate ?? student.joinedAt ?? todayISO(),
   );
   const [markDownPaymentPaid, setMarkDownPaymentPaid] = useState(false);
 

@@ -32,6 +32,7 @@ export function StudentsPage() {
         const matchesQuery =
           !q ||
           student.fullName.toLowerCase().includes(q) ||
+          student.parentName.toLowerCase().includes(q) ||
           student.phone.toLowerCase().includes(q) ||
           student.parentPhone.toLowerCase().includes(q) ||
           student.email.toLowerCase().includes(q) ||
@@ -55,7 +56,7 @@ export function StudentsPage() {
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="input pl-9"
-            placeholder="İsim, anne veya baba telefonu ara..."
+            placeholder="İsim, veli adı veya telefon ara..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -132,6 +133,7 @@ export function StudentsPage() {
                         >
                           {s.fullName}
                         </Link>
+                        {s.parentName ? <p className="text-xs text-slate-500">Veli: {s.parentName}</p> : null}
                       </div>
                     </div>
                   </td>

@@ -84,6 +84,7 @@ function normalizeStudent(student: Student): Student {
   return {
     ...student,
     photoUrl: student.photoUrl === undefined ? null : student.photoUrl,
+    parentName: student.parentName ?? "",
     parentPhone: student.parentPhone ?? "",
     phone: student.phone ?? "",
     monthlyFee: student.monthlyFee ?? 0,

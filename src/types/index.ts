@@ -8,6 +8,7 @@ export type Student = {
   fullName: string;
   email: string;
   phone: string;
+  parentName: string;
   parentPhone: string;
   classroom: string;
   course: string;

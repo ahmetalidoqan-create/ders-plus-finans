@@ -95,7 +95,8 @@ export function StatementModal({ student, payments, academyName, onClose }: Prop
           </div>
           <div className="rounded-2xl bg-slate-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">İletişim</p>
-            <p className="mt-1 font-semibold text-slate-900">Anne: {student.parentPhone || "—"}</p>
+            <p className="mt-1 font-semibold text-slate-900">{student.parentName || "Veli adı yok"}</p>
+            <p className="mt-1 text-sm text-slate-500">Anne: {student.parentPhone || "—"}</p>
             <p className="mt-1 text-sm text-slate-500">Kayıt: {student.joinedAt ? formatDate(student.joinedAt) : "—"}</p>
             <p className="mt-1 text-sm text-slate-500">{frozen ? "Dondurulmuş öğrenci" : "Aktif öğrenci"}</p>
           </div>

@@ -15,10 +15,12 @@ type Props = {
 
 export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
   const [fullName, setFullName] = useState(initial?.fullName ?? "");
+  const [parentName, setParentName] = useState(initial?.parentName ?? "");
   const [parentPhone, setParentPhone] = useState(initial?.parentPhone ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [classroom, setClassroom] = useState(initial?.classroom ?? CLASSROOM_OPTIONS[2]);
   const [agreementTotal, setAgreementTotal] = useState(String(initial?.agreementTotal ?? 0));
+  const [joinedAt, setJoinedAt] = useState(initial?.joinedAt ?? todayISO());
   const [photoUrl, setPhotoUrl] = useState<string | null>(initial?.photoUrl ?? null);
   const [photoUrlInput, setPhotoUrlInput] = useState(initial?.photoUrl ?? "");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +54,7 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
       fullName,
       email: initial?.email ?? "",
       phone: phone.trim(),
+      parentName: parentName.trim(),
       parentPhone: parentPhone.trim(),
       classroom,
       course: initial?.course ?? "",
@@ -61,7 +64,7 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
       installmentCount: initial?.installmentCount ?? 0,
       firstInstallmentDate: initial?.firstInstallmentDate ?? null,
       status: initial?.status ?? "active",
-      joinedAt: initial?.joinedAt ?? todayISO(),
+      joinedAt: joinedAt || todayISO(),
       photoUrl,
     };
     onSubmit(draft, initial?.id);
@@ -114,6 +117,14 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
           <FormField label="Ad soyad">
             <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
           </FormField>
+          <FormField label="Veli adı">
+            <input
+              className="input"
+              value={parentName}
+              onChange={(e) => setParentName(e.target.value)}
+              placeholder="İsteğe bağlı"
+            />
+          </FormField>
           <FormField label="Sınıf">
             <select className="input" value={classroom} onChange={(e) => setClassroom(e.target.value)}>
               {CLASSROOM_OPTIONS.map((c) => (
@@ -141,6 +152,15 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="İsteğe bağlı"
+            />
+          </FormField>
+          <FormField label="Kayıt tarihi">
+            <input
+              className="input"
+              type="date"
+              value={joinedAt}
+              onChange={(e) => setJoinedAt(e.target.value)}
+              required
             />
           </FormField>
           <FormField label="Toplam anlaşma tutarı (TL)">

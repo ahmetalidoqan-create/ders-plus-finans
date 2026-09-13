@@ -110,6 +110,9 @@ export function StudentDetailPage() {
               {[student.classroom, student.course].filter(Boolean).join(" · ")}
             </p>
             <p className="mt-1 text-sm text-slate-500">
+              Veli: {student.parentName || "—"}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
               Anne: {student.parentPhone || "—"}
             </p>
             <p className="mt-1 text-sm text-slate-500">

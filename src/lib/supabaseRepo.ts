@@ -10,12 +10,20 @@ function num(value: unknown, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function parentNameFromRow(row: Record<string, unknown>) {
+  const named = String(row.parent_name ?? "").trim();
+  if (named) return named;
+  const stored = String(row.email ?? "").trim();
+  return stored.includes("@") ? "" : stored;
+}
+
 function mapStudent(row: Record<string, unknown>): Student {
   return {
     id: String(row.id),
     fullName: String(row.full_name ?? ""),
-    email: String(row.email ?? ""),
+    email: String(row.email ?? "").includes("@") ? String(row.email ?? "") : "",
     phone: String(row.phone ?? ""),
+    parentName: parentNameFromRow(row),
     parentPhone: String(row.parent_phone ?? ""),
     classroom: String(row.classroom ?? ""),
     course: String(row.course ?? ""),
@@ -34,7 +42,7 @@ function studentRow(student: Student) {
   return {
     id: student.id,
     full_name: student.fullName,
-    email: student.email,
+    email: student.parentName || student.email,
     phone: student.phone,
     parent_phone: student.parentPhone,
     classroom: student.classroom,
