@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, Filter, Plus, Search } from "lucide-react";
+import { ChevronRight, FileText, Filter, Plus, Search } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { formatMoney } from "@/lib/format";
 import { getStudentFinance, studentHasDebt, studentIsOverdue } from "@/lib/finance";
 import { StudentFormModal } from "@/components/modals/StudentFormModal";
+import { StatementModal } from "@/components/modals/StatementModal";
 import { Avatar } from "@/components/Avatar";
 import type { Student, StudentDraft } from "@/types";
 
@@ -16,6 +17,7 @@ export function StudentsPage() {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editStudent, setEditStudent] = useState<Student | null>(null);
+  const [statementStudent, setStatementStudent] = useState<Student | null>(null);
 
   const classrooms = useMemo(
     () => Array.from(new Set(data.students.map((s) => s.classroom))).sort(),
@@ -157,6 +159,13 @@ export function StudentsPage() {
                     <div className="flex items-center justify-end gap-3">
                       <button
                         type="button"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700"
+                        onClick={() => setStatementStudent(s)}
+                      >
+                        <FileText size={14} /> Ekstre
+                      </button>
+                      <button
+                        type="button"
                         className="text-sm font-medium text-slate-600 hover:text-slate-900"
                         onClick={() => setEditStudent(s)}
                       >
@@ -198,6 +207,14 @@ export function StudentsPage() {
           initial={editStudent}
           onClose={() => setEditStudent(null)}
           onSubmit={(draft, id) => handleSubmit(draft, id)}
+        />
+      ) : null}
+      {statementStudent ? (
+        <StatementModal
+          student={statementStudent}
+          payments={data.payments}
+          academyName={data.settings.academyName}
+          onClose={() => setStatementStudent(null)}
         />
       ) : null}
     </div>

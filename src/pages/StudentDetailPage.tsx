@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarClock, FileText, ListChecks, PlusCircle, Trash2, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarClock, FileText, ListChecks, PlusCircle, ScrollText, Trash2, Wallet } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { formatDate, formatMoney } from "@/lib/format";
 import { paymentMethodLabel } from "@/lib/constants";
@@ -14,6 +14,7 @@ import { CollectPaymentSelect } from "@/components/CollectPaymentSelect";
 import type { Payment, StudentDraft } from "@/types";
 import { ModalShell } from "@/components/modals/ModalShell";
 import { ReceiptActions } from "@/components/receipt/ReceiptActions";
+import { StatementModal } from "@/components/modals/StatementModal";
 import { buildReceiptData, countRemainingInstallments, type ReceiptData } from "@/lib/receipt";
 import { saveReceiptToSupabase } from "@/lib/supabaseRepo";
 
@@ -39,6 +40,7 @@ export function StudentDetailPage() {
   const [planOpen, setPlanOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
+  const [statementOpen, setStatementOpen] = useState(false);
 
   const student = data.students.find((s) => s.id === studentId);
   if (loading) return null;
@@ -114,6 +116,9 @@ export function StudentDetailPage() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
+          <button type="button" className="btn-primary" onClick={() => setStatementOpen(true)}>
+            <ScrollText size={16} /> Ekstre / Hesap Özeti
+          </button>
           <button type="button" className="btn-secondary" onClick={() => setEditOpen(true)}>
             Düzenle
           </button>
@@ -325,6 +330,14 @@ export function StudentDetailPage() {
             </div>
           </div>
         </ModalShell>
+      ) : null}
+      {statementOpen ? (
+        <StatementModal
+          student={student}
+          payments={data.payments}
+          academyName={data.settings.academyName}
+          onClose={() => setStatementOpen(false)}
+        />
       ) : null}
     </div>
   );
