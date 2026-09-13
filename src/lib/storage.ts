@@ -94,7 +94,7 @@ export const seedData: AppData = {
       downPayment: 2800,
       installmentCount: 7,
       firstInstallmentDate: "2025-10-10",
-      status: "inactive",
+      status: "frozen",
       joinedAt: "2025-09-10",
       photoUrl: null,
     },

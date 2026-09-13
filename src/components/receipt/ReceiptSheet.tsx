@@ -46,7 +46,12 @@ export function ReceiptSheet({ data }: Props) {
 
         {(data.parentPhone || data.phone) && (
           <p className="text-xs text-slate-500">
-            İletişim: {[data.parentPhone, data.phone].filter(Boolean).join(" · ")}
+            İletişim: {[
+              data.parentPhone ? `Anne: ${data.parentPhone}` : "",
+              data.phone ? `Baba: ${data.phone}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         )}
       </div>

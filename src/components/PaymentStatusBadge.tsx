@@ -6,8 +6,10 @@ const config: Record<PaymentStatus, { label: string; className: string }> = {
   overdue: { label: "Gecikti", className: "bg-red-50 text-red-700" },
 };
 
-export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
-  const c = config[status];
+export function PaymentStatusBadge({ status, paused }: { status: PaymentStatus; paused?: boolean }) {
+  const c = paused && status !== "paid"
+    ? { label: "Donduruldu", className: "bg-sky-50 text-sky-700" }
+    : config[status];
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${c.className}`}>
       {c.label}

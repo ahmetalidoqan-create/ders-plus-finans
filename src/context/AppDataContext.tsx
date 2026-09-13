@@ -34,6 +34,7 @@ import {
   buildInstallmentPlanPayments,
   expandFixedExpensesUntil,
   retitleInstallmentExpenses,
+  withPaymentStatus,
   type CollectionInput,
   type CollectionResult,
 } from "@/lib/finance";
@@ -44,6 +45,7 @@ type AppDataContextValue = {
   syncError: string | null;
   addStudent: (student: StudentDraft) => void;
   updateStudent: (student: Student) => void;
+  deleteStudent: (id: string) => void;
   addPayment: (payment: Omit<Payment, "id" | "status"> & { status?: Payment["status"] }) => void;
   markPaymentPaid: (id: string, method: NonNullable<Payment["method"]>) => void;
   collectFromStudent: (input: CollectionInput) => CollectionResult;
@@ -66,12 +68,6 @@ type AppDataContextValue = {
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
 
-function withDerivedStatus(payment: Payment): Payment {
-  if (payment.paidAt) return { ...payment, status: "paid" };
-  const overdue = payment.dueDate < todayISO();
-  return { ...payment, status: overdue ? "overdue" : "pending" };
-}
-
 const LEGACY_CATEGORY_MAP: Record<string, string> = {
   Malzeme: "Kırtasiye/Malzeme",
   Fatura: "Faturalar",
@@ -89,15 +85,19 @@ function normalizeStudent(student: Student): Student {
     ...student,
     photoUrl: student.photoUrl === undefined ? null : student.photoUrl,
     parentPhone: student.parentPhone ?? "",
+    phone: student.phone ?? "",
+    monthlyFee: student.monthlyFee ?? 0,
+    status: student.status === "frozen" || (student.status as string) === "inactive" ? "frozen" : "active",
   };
 }
 
 function migrateLoadedData(loaded: Partial<AppData> & { students?: Student[]; payments?: Payment[]; expenses?: Expense[] }): AppData {
+  const students = (loaded.students ?? []).map(normalizeStudent);
   return {
     version: CURRENT_DATA_VERSION,
     settings: { ...seedData.settings, ...loaded.settings },
-    students: (loaded.students ?? []).map(normalizeStudent),
-    payments: (loaded.payments ?? []).map(withDerivedStatus),
+    students,
+    payments: (loaded.payments ?? []).map((payment) => withPaymentStatus(payment, students)),
     expenses: (loaded.expenses ?? []).map(normalizeExpense),
     teachers: withFixedTeachers(loaded.teachers),
     teacherLessons: Array.isArray((loaded as AppData).teacherLessons) ? (loaded as AppData).teacherLessons : [],
@@ -182,14 +182,30 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const updateStudent = useCallback(
     (student: Student) => {
-      persist({ ...data, students: data.students.map((s) => (s.id === student.id ? student : s)) });
+      const students = data.students.map((s) => (s.id === student.id ? student : s));
+      persist({
+        ...data,
+        students,
+        payments: data.payments.map((payment) => withPaymentStatus(payment, students)),
+      });
+    },
+    [data, persist],
+  );
+
+  const deleteStudent = useCallback(
+    (id: string) => {
+      persist({
+        ...data,
+        students: data.students.filter((s) => s.id !== id),
+        payments: data.payments.filter((p) => p.studentId !== id),
+      });
     },
     [data, persist],
   );
 
   const addPayment = useCallback(
     (payment: Omit<Payment, "id" | "status"> & { status?: Payment["status"] }) => {
-      const next = withDerivedStatus({ ...payment, id: uid("pay"), status: "pending" });
+      const next = withPaymentStatus({ ...payment, id: uid("pay"), status: "pending" }, data.students);
       persist({ ...data, payments: [next, ...data.payments] });
     },
     [data, persist],
@@ -200,7 +216,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       persist({
         ...data,
         payments: data.payments.map((p) =>
-          p.id === id ? withDerivedStatus({ ...p, paidAt: todayISO(), method }) : p,
+          p.id === id ? withPaymentStatus({ ...p, paidAt: todayISO(), method }, data.students) : p,
         ),
       });
     },
@@ -222,12 +238,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         ...data,
         payments: data.payments.map((p) =>
           p.id === paymentId
-            ? withDerivedStatus({
-                ...p,
-                paidAt: input.date,
-                method: input.method,
-                note: input.note?.trim() ? input.note.trim() : p.note,
-              })
+            ? withPaymentStatus(
+                {
+                  ...p,
+                  paidAt: input.date,
+                  method: input.method,
+                  note: input.note?.trim() ? input.note.trim() : p.note,
+                },
+                data.students,
+              )
             : p,
         ),
       });
@@ -246,7 +265,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       persist({
         ...data,
         payments: data.payments.map((p) =>
-          p.id === paymentId ? withDerivedStatus({ ...p, paidAt: null, method: null }) : p,
+          p.id === paymentId ? withPaymentStatus({ ...p, paidAt: null, method: null }, data.students) : p,
         ),
       });
     },
@@ -361,11 +380,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         installmentCount: plan.installmentCount,
         firstInstallmentDate: plan.firstInstallmentDate,
       };
-      const newPayments = buildInstallmentPlanPayments(updatedStudent, plan).map(withDerivedStatus);
+      const students = data.students.map((s) => (s.id === studentId ? updatedStudent : s));
+      const newPayments = buildInstallmentPlanPayments(updatedStudent, plan).map((payment) =>
+        withPaymentStatus(payment, students),
+      );
       const otherPayments = data.payments.filter((p) => p.studentId !== studentId);
       persist({
         ...data,
-        students: data.students.map((s) => (s.id === studentId ? updatedStudent : s)),
+        students,
         payments: [...newPayments, ...otherPayments],
       });
     },
@@ -398,13 +420,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const importData = useCallback(
     (incoming: AppData) => {
+      const students = incoming.students.map(normalizeStudent);
       persist(
         ensureFixedExpenses({
           ...incoming,
           version: CURRENT_DATA_VERSION,
           settings: { ...seedData.settings, ...incoming.settings },
-          students: incoming.students.map(normalizeStudent),
-          payments: incoming.payments.map(withDerivedStatus),
+          students,
+          payments: incoming.payments.map((payment) => withPaymentStatus(payment, students)),
           expenses: incoming.expenses.map(normalizeExpense),
           teachers: withFixedTeachers(incoming.teachers),
           teacherLessons: Array.isArray(incoming.teacherLessons) ? incoming.teacherLessons : [],
@@ -421,6 +444,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       syncError,
       addStudent,
       updateStudent,
+      deleteStudent,
       addPayment,
       markPaymentPaid,
       collectFromStudent,
@@ -446,6 +470,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       syncError,
       addStudent,
       updateStudent,
+      deleteStudent,
       addPayment,
       markPaymentPaid,
       collectFromStudent,

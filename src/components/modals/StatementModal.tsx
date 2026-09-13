@@ -28,6 +28,7 @@ export function StatementModal({ student, payments, academyName, onClose }: Prop
   );
   const whatsappUrl = statementWhatsAppUrl(data);
   const displayPhone = student.parentPhone.trim() || student.phone.trim();
+  const frozen = student.status === "frozen";
 
   async function handlePdf() {
     if (!sheetRef.current) return;
@@ -90,13 +91,13 @@ export function StatementModal({ student, payments, academyName, onClose }: Prop
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Öğrenci</p>
             <p className="mt-1 font-semibold text-slate-900">{student.fullName}</p>
             <p className="mt-1 text-sm text-slate-500">{[student.classroom, student.course].filter(Boolean).join(" · ") || "—"}</p>
-            <p className="mt-1 text-sm text-slate-500">{student.phone || "Telefon yok"}</p>
+            <p className="mt-1 text-sm text-slate-500">Baba: {student.phone || "—"}</p>
           </div>
           <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Veli</p>
-            <p className="mt-1 font-semibold text-slate-900">{student.parentPhone || "Veli telefonu yok"}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">İletişim</p>
+            <p className="mt-1 font-semibold text-slate-900">Anne: {student.parentPhone || "—"}</p>
             <p className="mt-1 text-sm text-slate-500">Kayıt: {student.joinedAt ? formatDate(student.joinedAt) : "—"}</p>
-            <p className="mt-1 text-sm text-slate-500">{student.status === "active" ? "Aktif öğrenci" : "Pasif öğrenci"}</p>
+            <p className="mt-1 text-sm text-slate-500">{frozen ? "Dondurulmuş öğrenci" : "Aktif öğrenci"}</p>
           </div>
         </div>
 
@@ -131,7 +132,7 @@ export function StatementModal({ student, payments, academyName, onClose }: Prop
                     <td className="px-4 py-3">{row.methodLabel}</td>
                     <td className="px-4 py-3 font-semibold">{formatMoney(row.amount)}</td>
                     <td className="px-4 py-3">
-                      <PaymentStatusBadge status={row.status} />
+                      <PaymentStatusBadge status={row.status} paused={frozen} />
                     </td>
                   </tr>
                 ))}
@@ -152,7 +153,7 @@ export function StatementModal({ student, payments, academyName, onClose }: Prop
             WhatsApp, {displayPhone} numarasına kalan bakiye ve ödeme özetini hazırlar.
           </p>
         ) : (
-          <p className="text-xs text-amber-600">WhatsApp için öğrenciye veya veliye 05xx formatında telefon ekleyin.</p>
+          <p className="text-xs text-amber-600">WhatsApp için anne veya baba telefonunu 05xx formatında ekleyin.</p>
         )}
         {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
       </div>

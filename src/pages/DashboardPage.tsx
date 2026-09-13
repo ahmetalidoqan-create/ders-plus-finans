@@ -213,7 +213,7 @@ export function DashboardPage() {
       ) : null}
       {modal === "collection" ? (
         <CollectionFormModal
-          students={data.students}
+          students={data.students.filter((s) => s.status !== "frozen")}
           payments={data.payments}
           onClose={() => setModal(null)}
           onCollect={(input) => collectFromStudent(input)}

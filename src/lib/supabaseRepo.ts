@@ -24,7 +24,7 @@ function mapStudent(row: Record<string, unknown>): Student {
     downPayment: num(row.down_payment),
     installmentCount: num(row.installment_count),
     firstInstallmentDate: row.first_installment_date ? String(row.first_installment_date) : null,
-    status: row.status === "inactive" ? "inactive" : "active",
+    status: row.status === "frozen" || row.status === "inactive" ? "frozen" : "active",
     joinedAt: String(row.joined_at ?? ""),
     photoUrl: row.photo_url ? String(row.photo_url) : null,
   };

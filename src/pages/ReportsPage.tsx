@@ -42,7 +42,7 @@ export function ReportsPage() {
   ];
 
   const activeStudents = data.students.filter((s) => s.status === "active").length;
-  const inactiveStudents = data.students.filter((s) => s.status === "inactive").length;
+  const frozenStudents = data.students.filter((s) => s.status === "frozen").length;
 
   return (
     <div className="space-y-6">
@@ -172,8 +172,8 @@ export function ReportsPage() {
             </div>
             <div className="flex items-center gap-1.5">
               <Wallet size={14} className="text-slate-400" />
-              <span className="text-slate-500">Pasif öğrenci: </span>
-              <span className="font-semibold text-slate-800">{inactiveStudents}</span>
+              <span className="text-slate-500">Dondurulmuş öğrenci: </span>
+              <span className="font-semibold text-slate-800">{frozenStudents}</span>
             </div>
           </div>
         </section>

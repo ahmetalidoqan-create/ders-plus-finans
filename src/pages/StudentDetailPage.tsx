@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CalendarClock, FileText, ListChecks, PlusCircle, ScrollText, Trash2, Wallet } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { formatDate, formatMoney } from "@/lib/format";
 import { paymentMethodLabel } from "@/lib/constants";
-import { getStudentFinance, getStudentPayments } from "@/lib/finance";
+import { getStudentFinance, getStudentPayments, isStudentFrozen, studentStatusLabel } from "@/lib/finance";
 import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { StudentFormModal } from "@/components/modals/StudentFormModal";
 import { PaymentFormModal } from "@/components/modals/PaymentFormModal";
@@ -26,10 +26,12 @@ function paymentLabel(p: Payment) {
 
 export function StudentDetailPage() {
   const { studentId } = useParams<{ studentId: string }>();
+  const navigate = useNavigate();
   const {
     data,
     loading,
     updateStudent,
+    deleteStudent,
     markPaymentPaid,
     deletePaymentCollection,
     deletePayment,
@@ -50,6 +52,7 @@ export function StudentDetailPage() {
   const allRows = getStudentPayments(data.payments, student.id);
   const rows = allRows.filter((p) => p.kind !== "other");
   const extraPayments = allRows.filter((p) => p.kind === "other");
+  const frozen = isStudentFrozen(student);
 
   function handleEdit(draft: StudentDraft, id?: string) {
     if (id) updateStudent({ ...draft, id });
@@ -97,21 +100,21 @@ export function StudentDetailPage() {
               <h2 className="text-xl font-bold text-slate-900">{student.fullName}</h2>
               <span
                 className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  student.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
+                  frozen ? "bg-sky-50 text-sky-700" : "bg-emerald-50 text-emerald-700"
                 }`}
               >
-                {student.status === "active" ? "Aktif" : "Pasif"}
+                {studentStatusLabel(student)}
               </span>
             </div>
             <p className="mt-1 text-sm text-slate-500">
               {[student.classroom, student.course].filter(Boolean).join(" · ")}
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              {[student.phone, student.email].filter(Boolean).join(" · ")}
+              Anne: {student.parentPhone || "—"}
             </p>
-            {student.parentPhone ? (
-              <p className="mt-1 text-sm text-slate-500">Veli: {student.parentPhone}</p>
-            ) : null}
+            <p className="mt-1 text-sm text-slate-500">
+              Baba: {student.phone || "—"}
+            </p>
             <p className="mt-1 text-xs text-slate-400">Kayıt tarihi: {formatDate(student.joinedAt)}</p>
           </div>
         </div>
@@ -125,11 +128,23 @@ export function StudentDetailPage() {
           <button
             type="button"
             className="btn-secondary"
-            onClick={() =>
-              updateStudent({ ...student, status: student.status === "active" ? "inactive" : "active" })
-            }
+            onClick={() => updateStudent({ ...student, status: frozen ? "active" : "frozen" })}
           >
-            {student.status === "active" ? "Pasife al" : "Aktif et"}
+            {frozen ? "Çöz" : "Dondur"}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary text-red-600 hover:bg-red-50 hover:text-red-700"
+            onClick={() => {
+              const confirmed = window.confirm(
+                `${student.fullName} silinecek. Tüm taksit ve ödeme kayıtları da silinecek. Emin misiniz?`,
+              );
+              if (!confirmed) return;
+              deleteStudent(student.id);
+              navigate("/ogrenciler", { replace: true });
+            }}
+          >
+            <Trash2 size={16} /> Öğrenciyi sil
           </button>
         </div>
       </div>
@@ -151,19 +166,23 @@ export function StudentDetailPage() {
           <div>
             <h3 className="font-semibold">Taksit durumu</h3>
             <p className="text-sm text-slate-500">
-              {finance.installmentCount > 0
-                ? `${finance.installmentCount} taksit · ${finance.overdueCount} gecikmiş`
-                : "Henüz taksit planı oluşturulmadı."}
+              {frozen
+                ? "Öğrenci dondurulduğu için taksitler durduruldu ve gecikmede görünmez."
+                : finance.installmentCount > 0
+                  ? `${finance.installmentCount} taksit · ${finance.overdueCount} gecikmiş`
+                  : "Henüz taksit planı oluşturulmadı."}
             </p>
           </div>
-          <div className="flex gap-2">
-            <button type="button" className="btn-secondary" onClick={() => setPaymentOpen(true)}>
-              <PlusCircle size={16} /> Ödeme ekle
-            </button>
-            <button type="button" className="btn-primary" onClick={() => setPlanOpen(true)}>
-              Taksit planı oluştur
-            </button>
-          </div>
+          {frozen ? null : (
+            <div className="flex gap-2">
+              <button type="button" className="btn-secondary" onClick={() => setPaymentOpen(true)}>
+                <PlusCircle size={16} /> Ödeme ekle
+              </button>
+              <button type="button" className="btn-primary" onClick={() => setPlanOpen(true)}>
+                Taksit planı oluştur
+              </button>
+            </div>
+          )}
         </div>
 
         {rows.length > 0 ? (
@@ -187,11 +206,13 @@ export function StudentDetailPage() {
                     <td className="px-4 py-3">{formatDate(p.dueDate)}</td>
                     <td className="px-4 py-3">{p.paidAt ? formatDate(p.paidAt) : "—"}</td>
                     <td className="px-4 py-3">
-                      <PaymentStatusBadge status={p.status} />
+                      <PaymentStatusBadge status={p.status} paused={frozen} />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {p.status !== "paid" ? (
+                      {p.status !== "paid" && !frozen ? (
                         <CollectPaymentSelect onCollect={(method) => markPaymentPaid(p.id, method)} />
+                      ) : p.status !== "paid" && frozen ? (
+                        <span className="text-xs text-sky-600">Donduruldu</span>
                       ) : (
                         <div className="flex items-center justify-end gap-2">
                           <span className="text-xs text-slate-400">{paymentMethodLabel(p.method)}</span>
@@ -245,9 +266,11 @@ export function StudentDetailPage() {
               Ödeme ekle ile girilen kayıtlar burada listelenir. İstemediğiniz tutarı silebilirsiniz.
             </p>
           </div>
-          <button type="button" className="btn-secondary" onClick={() => setPaymentOpen(true)}>
-            <PlusCircle size={16} /> Ödeme ekle
-          </button>
+          {frozen ? null : (
+            <button type="button" className="btn-secondary" onClick={() => setPaymentOpen(true)}>
+              <PlusCircle size={16} /> Ödeme ekle
+            </button>
+          )}
         </div>
 
         {extraPayments.length > 0 ? (
@@ -270,12 +293,12 @@ export function StudentDetailPage() {
                     <td className="px-4 py-3">{formatMoney(p.amount)}</td>
                     <td className="px-4 py-3">{formatDate(p.paidAt || p.dueDate)}</td>
                     <td className="px-4 py-3">
-                      <PaymentStatusBadge status={p.status} />
+                      <PaymentStatusBadge status={p.status} paused={frozen} />
                     </td>
                     <td className="px-4 py-3 text-slate-500">{paymentMethodLabel(p.method)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {p.status !== "paid" ? (
+                        {p.status !== "paid" && !frozen ? (
                           <CollectPaymentSelect onCollect={(method) => markPaymentPaid(p.id, method)} />
                         ) : null}
                         <button

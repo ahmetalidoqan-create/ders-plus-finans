@@ -1,6 +1,6 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Camera, X } from "lucide-react";
-import type { Student, StudentDraft, StudentStatus } from "@/types";
+import type { Student, StudentDraft } from "@/types";
 import { todayISO } from "@/lib/format";
 import { CLASSROOM_OPTIONS } from "@/lib/constants";
 import { ModalShell } from "@/components/modals/ModalShell";
@@ -15,12 +15,10 @@ type Props = {
 
 export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
   const [fullName, setFullName] = useState(initial?.fullName ?? "");
-  const [phone, setPhone] = useState(initial?.phone ?? "");
   const [parentPhone, setParentPhone] = useState(initial?.parentPhone ?? "");
+  const [phone, setPhone] = useState(initial?.phone ?? "");
   const [classroom, setClassroom] = useState(initial?.classroom ?? CLASSROOM_OPTIONS[2]);
   const [agreementTotal, setAgreementTotal] = useState(String(initial?.agreementTotal ?? 0));
-  const [monthlyFee, setMonthlyFee] = useState(String(initial?.monthlyFee ?? 0));
-  const [status, setStatus] = useState<StudentStatus>(initial?.status ?? "active");
   const [photoUrl, setPhotoUrl] = useState<string | null>(initial?.photoUrl ?? null);
   const [photoUrlInput, setPhotoUrlInput] = useState(initial?.photoUrl ?? "");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,16 +51,16 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
     const draft: StudentDraft = {
       fullName,
       email: initial?.email ?? "",
-      phone,
-      parentPhone,
+      phone: phone.trim(),
+      parentPhone: parentPhone.trim(),
       classroom,
       course: initial?.course ?? "",
       agreementTotal: Number(agreementTotal),
-      monthlyFee: Number(monthlyFee),
+      monthlyFee: initial?.monthlyFee ?? 0,
       downPayment: initial?.downPayment ?? 0,
       installmentCount: initial?.installmentCount ?? 0,
       firstInstallmentDate: initial?.firstInstallmentDate ?? null,
-      status,
+      status: initial?.status ?? "active",
       joinedAt: initial?.joinedAt ?? todayISO(),
       photoUrl,
     };
@@ -116,12 +114,6 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
           <FormField label="Ad soyad">
             <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
           </FormField>
-          <FormField label="Telefon">
-            <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-          </FormField>
-          <FormField label="Veli Cep Telefonu">
-            <input className="input" value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} />
-          </FormField>
           <FormField label="Sınıf">
             <select className="input" value={classroom} onChange={(e) => setClassroom(e.target.value)}>
               {CLASSROOM_OPTIONS.map((c) => (
@@ -131,15 +123,25 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
               ))}
             </select>
           </FormField>
-          <FormField label="Durum">
-            <select
+          <FormField label="Anne telefonu">
+            <input
               className="input"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as StudentStatus)}
-            >
-              <option value="active">Aktif</option>
-              <option value="inactive">Pasif</option>
-            </select>
+              type="tel"
+              inputMode="tel"
+              value={parentPhone}
+              onChange={(e) => setParentPhone(e.target.value)}
+              placeholder="İsteğe bağlı"
+            />
+          </FormField>
+          <FormField label="Baba telefonu">
+            <input
+              className="input"
+              type="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="İsteğe bağlı"
+            />
           </FormField>
           <FormField label="Toplam anlaşma tutarı (TL)">
             <input
@@ -149,15 +151,6 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
               value={agreementTotal}
               onChange={(e) => setAgreementTotal(e.target.value)}
               required
-            />
-          </FormField>
-          <FormField label="Referans aylık ücret (TL)">
-            <input
-              className="input"
-              type="number"
-              min={0}
-              value={monthlyFee}
-              onChange={(e) => setMonthlyFee(e.target.value)}
             />
           </FormField>
         </div>

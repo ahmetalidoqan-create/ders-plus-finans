@@ -1,4 +1,4 @@
-export type StudentStatus = "active" | "inactive";
+export type StudentStatus = "active" | "frozen";
 export type PaymentStatus = "paid" | "pending" | "overdue";
 export type PaymentMethod = "nakit" | "havale" | "kart";
 export type PaymentKind = "down_payment" | "installment" | "other";

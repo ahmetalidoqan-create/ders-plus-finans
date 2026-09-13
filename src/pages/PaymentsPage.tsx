@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { formatDate, formatMoney, formatMonthLong, monthKey, todayISO } from "@/lib/format";
 import { paymentMethodLabel } from "@/lib/constants";
+import { isStudentFrozen } from "@/lib/finance";
 import { PaymentFormModal } from "@/components/modals/PaymentFormModal";
 import { Avatar } from "@/components/Avatar";
 
@@ -86,7 +87,7 @@ export function PaymentsPage() {
       </div>
       {open ? (
         <PaymentFormModal
-          students={data.students}
+          students={data.students.filter((s) => !isStudentFrozen(s))}
           onClose={() => setOpen(false)}
           onSubmit={(payload) => addPayment(payload)}
         />

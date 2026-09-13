@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { CheckCircle2, ChevronLeft, Search } from "lucide-react";
 import type { CollectionInput } from "@/lib/finance";
-import { getStudentFinance, getStudentPayments } from "@/lib/finance";
+import { getStudentFinance, getStudentPayments, isStudentFrozen } from "@/lib/finance";
 import type { Payment, PaymentMethod, Student } from "@/types";
 import { formatDate, formatMoney, todayISO, uid } from "@/lib/format";
 import { PAYMENT_METHOD_OPTIONS, paymentMethodLabel } from "@/lib/constants";
@@ -40,7 +40,8 @@ export function CollectionFormModal({ students, payments, onClose, onCollect, on
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = q ? students.filter((s) => s.fullName.toLowerCase().includes(q)) : students;
+    const visible = students.filter((s) => !isStudentFrozen(s));
+    const list = q ? visible.filter((s) => s.fullName.toLowerCase().includes(q)) : visible;
     return list.slice().sort((a, b) => a.fullName.localeCompare(b.fullName, "tr"));
   }, [students, query]);
 

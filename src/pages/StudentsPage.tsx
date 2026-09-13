@@ -3,14 +3,14 @@ import { Link } from "react-router-dom";
 import { ChevronRight, FileText, Filter, Plus, Search } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { formatMoney } from "@/lib/format";
-import { getStudentFinance, studentHasDebt, studentIsOverdue } from "@/lib/finance";
+import { getStudentFinance, isStudentFrozen, studentHasDebt, studentIsOverdue, studentStatusLabel } from "@/lib/finance";
 import { StudentFormModal } from "@/components/modals/StudentFormModal";
 import { StatementModal } from "@/components/modals/StatementModal";
 import { Avatar } from "@/components/Avatar";
 import type { Student, StudentDraft } from "@/types";
 
 export function StudentsPage() {
-  const { data, addStudent, updateStudent } = useAppData();
+  const { data, addStudent, updateStudent, deleteStudent } = useAppData();
   const [query, setQuery] = useState("");
   const [classroomFilter, setClassroomFilter] = useState("all");
   const [debtOnly, setDebtOnly] = useState(false);
@@ -55,7 +55,7 @@ export function StudentsPage() {
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="input pl-9"
-            placeholder="İsim, telefon veya veli telefonu ara..."
+            placeholder="İsim, anne veya baba telefonu ara..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -112,7 +112,7 @@ export function StudentsPage() {
               <tr>
                 <th className="px-4 py-3 font-medium">Öğrenci</th>
                 <th className="px-4 py-3 font-medium">Sınıf</th>
-                <th className="px-4 py-3 font-medium">Veli Telefonu</th>
+                <th className="px-4 py-3 font-medium">Telefonlar</th>
                 <th className="px-4 py-3 font-medium">Anlaşma tutarı</th>
                 <th className="px-4 py-3 font-medium">Kalan borç</th>
                 <th className="px-4 py-3 font-medium">Durum</th>
@@ -132,12 +132,20 @@ export function StudentsPage() {
                         >
                           {s.fullName}
                         </Link>
-                        <p className="text-xs text-slate-500">{s.phone}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-4 py-3">{s.classroom}</td>
-                  <td className="px-4 py-3">{s.parentPhone || <span className="text-slate-400">—</span>}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    {s.parentPhone || s.phone ? (
+                      <div className="space-y-0.5">
+                        {s.parentPhone ? <p>Anne: {s.parentPhone}</p> : null}
+                        {s.phone ? <p>Baba: {s.phone}</p> : null}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{formatMoney(finance.total)}</td>
                   <td className="px-4 py-3">
                     {finance.remaining > 0 ? (
@@ -149,10 +157,10 @@ export function StudentsPage() {
                   <td className="px-4 py-3">
                     <span
                       className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        s.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
+                        isStudentFrozen(s) ? "bg-sky-50 text-sky-700" : "bg-emerald-50 text-emerald-700"
                       }`}
                     >
-                      {s.status === "active" ? "Aktif" : "Pasif"}
+                      {studentStatusLabel(s)}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -175,10 +183,22 @@ export function StudentsPage() {
                         type="button"
                         className="text-sm font-medium text-brand-600"
                         onClick={() =>
-                          updateStudent({ ...s, status: s.status === "active" ? "inactive" : "active" })
+                          updateStudent({ ...s, status: isStudentFrozen(s) ? "active" : "frozen" })
                         }
                       >
-                        {s.status === "active" ? "Pasife al" : "Aktif et"}
+                        {isStudentFrozen(s) ? "Çöz" : "Dondur"}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-red-600 hover:text-red-700"
+                        onClick={() => {
+                          const confirmed = window.confirm(
+                            `${s.fullName} silinecek. Tüm taksit ve ödeme kayıtları da silinecek. Emin misiniz?`,
+                          );
+                          if (confirmed) deleteStudent(s.id);
+                        }}
+                      >
+                        Sil
                       </button>
                       <Link to={`/ogrenciler/${s.id}`} className="text-slate-400 hover:text-brand-600">
                         <ChevronRight size={16} />

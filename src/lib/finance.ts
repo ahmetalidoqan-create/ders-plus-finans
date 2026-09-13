@@ -23,10 +23,42 @@ export function getStudentPayments(payments: Payment[], studentId: string): Paym
     });
 }
 
+export function isStudentFrozen(student?: Student | null) {
+  return student?.status === "frozen" || (student?.status as string | undefined) === "inactive";
+}
+
+export function studentStatusLabel(student: Student) {
+  return isStudentFrozen(student) ? "Donduruldu" : "Aktif";
+}
+
+export function studentMotherPhone(student: Student) {
+  return student.parentPhone.trim();
+}
+
+export function studentFatherPhone(student: Student) {
+  return student.phone.trim();
+}
+
+export function studentPrimaryPhone(student: Student) {
+  return studentMotherPhone(student) || studentFatherPhone(student);
+}
+
+export function withPaymentStatus(payment: Payment, students: Student[]): Payment {
+  if (payment.paidAt) return { ...payment, status: "paid" };
+  const student = students.find((item) => item.id === payment.studentId);
+  if (isStudentFrozen(student)) return { ...payment, status: "pending" };
+  return { ...payment, status: payment.dueDate < todayISO() ? "overdue" : "pending" };
+}
+
+function isPaymentPaused(payment: Payment, students: Student[]) {
+  if (payment.status === "paid") return false;
+  return isStudentFrozen(students.find((item) => item.id === payment.studentId));
+}
+
 export function getStudentFinance(student: Student, payments: Payment[]): StudentFinance {
   const rows = payments.filter((p) => p.studentId === student.id);
   const paid = rows.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amount, 0);
-  const overdueRows = rows.filter((p) => p.status === "overdue");
+  const overdueRows = isStudentFrozen(student) ? [] : rows.filter((p) => p.status === "overdue");
   const total = student.agreementTotal || rows.reduce((sum, p) => sum + p.amount, 0);
   return {
     total,
@@ -169,15 +201,19 @@ function periodBucket(dateStr: string, granularity: PeriodGranularity) {
   return granularity === "month" ? monthKey(dateStr) : dateStr.slice(0, 4);
 }
 
-function unpaidCarryover(payments: Payment[], month: string) {
-  return payments.filter((p) => p.status !== "paid" && monthKey(p.dueDate) < month);
+function unpaidCarryover(payments: Payment[], month: string, students: Student[]) {
+  return payments.filter(
+    (p) => p.status !== "paid" && monthKey(p.dueDate) < month && !isPaymentPaused(p, students),
+  );
 }
 
 export function getPeriodReport(data: AppData, granularity: PeriodGranularity): PeriodReport {
   const today = todayISO();
   const bucket = periodBucket(today, granularity);
-  const due = data.payments.filter((p) => periodBucket(p.dueDate, granularity) === bucket);
-  const carryover = granularity === "month" ? unpaidCarryover(data.payments, monthKey(today)) : [];
+  const due = data.payments.filter(
+    (p) => periodBucket(p.dueDate, granularity) === bucket && !isPaymentPaused(p, data.students),
+  );
+  const carryover = granularity === "month" ? unpaidCarryover(data.payments, monthKey(today), data.students) : [];
   const expected = due.reduce((sum, p) => sum + p.amount, 0) + carryover.reduce((sum, p) => sum + p.amount, 0);
   const realized = data.payments
     .filter((p) => p.paidAt && periodBucket(p.paidAt, granularity) === bucket)
@@ -194,7 +230,7 @@ export function getPeriodReport(data: AppData, granularity: PeriodGranularity): 
 export function getDashboardStats(data: AppData): DashboardStats {
   const month = getPeriodReport(data, "month");
   const totalOverdueDebt = data.payments
-    .filter((p) => p.status === "overdue")
+    .filter((p) => p.status === "overdue" && !isPaymentPaused(p, data.students))
     .reduce((sum, p) => sum + p.amount, 0);
   return {
     expectedThisMonth: month.expected,
@@ -225,7 +261,7 @@ export function getMonthlySeries(data: AppData, monthsBack = 6): MonthlySeriesPo
   }
   return keys.map((key) => {
     const expected = data.payments
-      .filter((p) => monthKey(p.dueDate) === key)
+      .filter((p) => monthKey(p.dueDate) === key && (p.status === "paid" || !isPaymentPaused(p, data.students)))
       .reduce((sum, p) => sum + p.amount, 0);
     const realized = data.payments
       .filter((p) => p.paidAt && monthKey(p.paidAt) === key)
@@ -300,14 +336,20 @@ export function getUpcomingPayments(data: AppData, days: number) {
   const today = todayISO();
   const cutoff = addDays(today, days);
   return data.payments
-    .filter((p) => p.status !== "paid" && p.dueDate >= today && p.dueDate <= cutoff)
+    .filter(
+      (p) =>
+        p.status !== "paid" &&
+        p.dueDate >= today &&
+        p.dueDate <= cutoff &&
+        !isPaymentPaused(p, data.students),
+    )
     .slice()
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
 
 export function getOverduePayments(data: AppData) {
   return data.payments
-    .filter((p) => p.status === "overdue")
+    .filter((p) => p.status === "overdue" && !isPaymentPaused(p, data.students))
     .slice()
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
@@ -392,6 +434,7 @@ export function getClassroomRevenueRows(data: AppData, month: string): Classroom
       .filter(
         (p) =>
           ids.has(p.studentId) &&
+          !isPaymentPaused(p, data.students) &&
           (monthKey(p.dueDate) === month || (p.status !== "paid" && monthKey(p.dueDate) < month)),
       )
       .reduce((sum, p) => sum + p.amount, 0);
