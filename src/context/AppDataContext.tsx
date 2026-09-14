@@ -31,12 +31,14 @@ import { monthKey, todayISO, uid } from "@/lib/format";
 import { FIXED_EXPENSES_UNTIL, withFixedTeachers } from "@/lib/constants";
 import {
   applyCollectionToPayments,
+  applyInstallmentCollection,
   buildInstallmentPlanPayments,
   expandFixedExpensesUntil,
   retitleInstallmentExpenses,
   withPaymentStatus,
   type CollectionInput,
   type CollectionResult,
+  type InstallmentCollectionInput,
 } from "@/lib/finance";
 
 type AppDataContextValue = {
@@ -49,7 +51,7 @@ type AppDataContextValue = {
   addPayment: (payment: Omit<Payment, "id" | "status"> & { status?: Payment["status"] }) => void;
   markPaymentPaid: (id: string, method: NonNullable<Payment["method"]>) => void;
   collectFromStudent: (input: CollectionInput) => CollectionResult;
-  collectInstallment: (paymentId: string, input: { date: string; method: NonNullable<Payment["method"]>; note?: string }) => void;
+  collectInstallment: (paymentId: string, input: InstallmentCollectionInput) => void;
   deletePaymentCollection: (paymentId: string) => void;
   deletePayment: (paymentId: string) => void;
   addExpense: (expense: Omit<Expense, "id">) => void;
@@ -234,22 +236,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   );
 
   const collectInstallment = useCallback(
-    (paymentId: string, input: { date: string; method: NonNullable<Payment["method"]>; note?: string }) => {
+    (paymentId: string, input: InstallmentCollectionInput) => {
       persist({
         ...data,
-        payments: data.payments.map((p) =>
-          p.id === paymentId
-            ? withPaymentStatus(
-                {
-                  ...p,
-                  paidAt: input.date,
-                  method: input.method,
-                  note: input.note?.trim() ? input.note.trim() : p.note,
-                },
-                data.students,
-              )
-            : p,
-        ),
+        payments: applyInstallmentCollection(data.payments, paymentId, input, data.students),
       });
     },
     [data, persist],

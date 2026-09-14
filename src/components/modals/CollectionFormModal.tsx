@@ -18,7 +18,7 @@ type Props = {
   payments: Payment[];
   onClose: () => void;
   onCollect: (input: CollectionInput) => void;
-  onCollectInstallment: (paymentId: string, input: { date: string; method: PaymentMethod; note?: string }) => void;
+  onCollectInstallment: (paymentId: string, input: { date: string; amount: number; method: PaymentMethod; note?: string }) => void;
 };
 
 function paymentLabel(p: Payment) {
@@ -89,8 +89,9 @@ export function CollectionFormModal({ students, payments, onClose, onCollect, on
     e.preventDefault();
     if (!selectedStudent) return;
     const numericAmount = Number(amount);
+    if (!(numericAmount > 0)) return;
     if (selectedPayment) {
-      onCollectInstallment(selectedPayment.id, { date, method, note });
+      onCollectInstallment(selectedPayment.id, { date, amount: numericAmount, method, note });
     } else {
       onCollect({ studentId: selectedStudent.id, amount: numericAmount, date, method, note });
     }
@@ -269,19 +270,19 @@ export function CollectionFormModal({ students, payments, onClose, onCollect, on
           {paymentId || freeform ? (
             <>
               <div className="grid gap-3 sm:grid-cols-2">
-                <FormField label="Tutar (TL)">
+                <FormField label="Tahsil edilen tutar (TL)">
                   <input
                     autoFocus={freeform}
-                    className="input disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+                    className="input"
                     type="number"
                     min={0}
+                    step="0.01"
                     value={amount}
-                    disabled={!!paymentId}
                     onChange={(e) => setAmount(e.target.value)}
                     required
                   />
                 </FormField>
-                <FormField label="Tarih">
+                <FormField label="Tahsilat tarihi">
                   <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
                 </FormField>
               </div>

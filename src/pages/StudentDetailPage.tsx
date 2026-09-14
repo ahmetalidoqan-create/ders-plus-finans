@@ -9,9 +9,9 @@ import { PaymentStatusBadge } from "@/components/PaymentStatusBadge";
 import { StudentFormModal } from "@/components/modals/StudentFormModal";
 import { PaymentFormModal } from "@/components/modals/PaymentFormModal";
 import { InstallmentPlanModal } from "@/components/modals/InstallmentPlanModal";
+import { CollectInstallmentModal } from "@/components/modals/CollectInstallmentModal";
 import { Avatar } from "@/components/Avatar";
-import { CollectPaymentSelect } from "@/components/CollectPaymentSelect";
-import type { Payment, StudentDraft } from "@/types";
+import type { Payment, PaymentMethod, StudentDraft } from "@/types";
 import { ModalShell } from "@/components/modals/ModalShell";
 import { ReceiptActions } from "@/components/receipt/ReceiptActions";
 import { StatementModal } from "@/components/modals/StatementModal";
@@ -32,7 +32,7 @@ export function StudentDetailPage() {
     loading,
     updateStudent,
     deleteStudent,
-    markPaymentPaid,
+    collectInstallment,
     deletePaymentCollection,
     deletePayment,
     generateInstallmentPlan,
@@ -43,6 +43,7 @@ export function StudentDetailPage() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [statementOpen, setStatementOpen] = useState(false);
+  const [collecting, setCollecting] = useState<Payment | null>(null);
 
   const student = data.students.find((s) => s.id === studentId);
   if (loading) return null;
@@ -56,6 +57,25 @@ export function StudentDetailPage() {
 
   function handleEdit(draft: StudentDraft, id?: string) {
     if (id) updateStudent({ ...draft, id });
+  }
+
+  function handleCollect(p: Payment, input: { date: string; amount: number; method: PaymentMethod }) {
+    if (!student) return;
+    collectInstallment(p.id, input);
+    const next = buildReceiptData({
+      student,
+      payments: data.payments,
+      paidThis: input.amount,
+      date: input.date,
+      method: input.method,
+      description: paymentLabel(p),
+      remainingInstallments: Math.max(
+        0,
+        countRemainingInstallments(data.payments, student.id) - (input.amount >= p.amount ? 1 : 0),
+      ),
+    });
+    setReceipt(next);
+    void saveReceiptToSupabase(next, student.id);
   }
 
   function handleDeleteCollection(p: Payment) {
@@ -213,7 +233,13 @@ export function StudentDetailPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       {p.status !== "paid" && !frozen ? (
-                        <CollectPaymentSelect onCollect={(method) => markPaymentPaid(p.id, method)} />
+                        <button
+                          type="button"
+                          className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                          onClick={() => setCollecting(p)}
+                        >
+                          Tahsil et
+                        </button>
                       ) : p.status !== "paid" && frozen ? (
                         <span className="text-xs text-sky-600">Donduruldu</span>
                       ) : (
@@ -302,7 +328,13 @@ export function StudentDetailPage() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {p.status !== "paid" && !frozen ? (
-                          <CollectPaymentSelect onCollect={(method) => markPaymentPaid(p.id, method)} />
+                          <button
+                            type="button"
+                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                            onClick={() => setCollecting(p)}
+                          >
+                            Tahsil et
+                          </button>
                         ) : null}
                         <button
                           type="button"
@@ -342,6 +374,14 @@ export function StudentDetailPage() {
           lockStudent
           onClose={() => setPaymentOpen(false)}
           onSubmit={(payload) => addPayment(payload)}
+        />
+      ) : null}
+      {collecting ? (
+        <CollectInstallmentModal
+          payment={collecting}
+          title={paymentLabel(collecting)}
+          onClose={() => setCollecting(null)}
+          onSubmit={(input) => handleCollect(collecting, input)}
         />
       ) : null}
       {receipt ? (

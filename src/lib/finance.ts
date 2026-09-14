@@ -140,6 +140,75 @@ export function applyCollectionToPayments(payments: Payment[], input: Collection
   return { payments: [extra, ...updated], coveredCount: paidIds.size, extraAmount: remaining };
 }
 
+export type InstallmentCollectionInput = {
+  amount: number;
+  date: string;
+  method: PaymentMethod;
+  note?: string;
+};
+
+function remainderCollectionNote(payment: Payment) {
+  if (payment.kind === "installment" && payment.installmentNo) return `${payment.installmentNo}. Taksit (kalan)`;
+  if (payment.kind === "down_payment") return "Peşinat (kalan)";
+  return `${payment.note || "Ödeme"} (kalan)`;
+}
+
+export function applyInstallmentCollection(
+  payments: Payment[],
+  paymentId: string,
+  input: InstallmentCollectionInput,
+  students: Student[],
+): Payment[] {
+  const target = payments.find((p) => p.id === paymentId);
+  if (!target || target.paidAt) return payments;
+  const collected = Math.round(Number(input.amount) * 100) / 100;
+  if (!(collected > 0)) return payments;
+
+  const original = target.amount;
+  const note = input.note?.trim() ? input.note.trim() : target.note;
+  const applied = Math.min(collected, original);
+  const paid = withPaymentStatus(
+    { ...target, amount: applied, paidAt: input.date, method: input.method, note },
+    students,
+  );
+
+  if (collected < original) {
+    const remainder = withPaymentStatus(
+      {
+        ...target,
+        id: uid("pay"),
+        amount: original - collected,
+        paidAt: null,
+        method: null,
+        note: remainderCollectionNote(target),
+      },
+      students,
+    );
+    return [remainder, ...payments.map((p) => (p.id === paymentId ? paid : p))];
+  }
+
+  const next = payments.map((p) => (p.id === paymentId ? { ...paid, amount: original } : p));
+  const extra = collected - original;
+  if (extra <= 0) return next;
+
+  const extraRow = withPaymentStatus(
+    {
+      id: uid("pay"),
+      studentId: target.studentId,
+      amount: extra,
+      dueDate: input.date,
+      paidAt: input.date,
+      method: input.method,
+      note: `${note || "Tahsilat"} (ek tutar)`,
+      kind: "other",
+      installmentNo: null,
+      status: "paid",
+    },
+    students,
+  );
+  return [extraRow, ...next];
+}
+
 export function buildInstallmentPlanPayments(student: Student, plan: PaymentPlanInput): Payment[] {
   const remaining = Math.max(student.agreementTotal - plan.downPayment, 0);
   const parts = splitEqual(remaining, plan.installmentCount);
