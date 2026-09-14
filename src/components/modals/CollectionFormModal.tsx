@@ -22,6 +22,7 @@ type Props = {
 };
 
 function paymentLabel(p: Payment) {
+  if (p.note.includes("kalan")) return p.note;
   if (p.kind === "down_payment") return "Peşinat";
   if (p.kind === "installment") return `${p.installmentNo}. Taksit`;
   return p.note || "Ödeme";

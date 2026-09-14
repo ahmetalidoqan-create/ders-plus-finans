@@ -228,7 +228,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const collectFromStudent = useCallback(
     (input: CollectionInput) => {
-      const result = applyCollectionToPayments(data.payments, input);
+      const result = applyCollectionToPayments(data.payments, input, data.students);
       persist({ ...data, payments: result.payments });
       return result;
     },

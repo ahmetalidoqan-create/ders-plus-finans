@@ -32,6 +32,7 @@ export function CollectInstallmentModal({ payment, title, onClose, onSubmit }: P
           <h2 className="text-lg font-bold">Tahsilat kaydet</h2>
           <p className="mt-1 text-sm text-slate-500">
             {title} · Taksit tutarı {formatMoney(payment.amount)}. Tutarı gerekirse değiştirebilirsiniz.
+            Fazla ödeme sonraki taksitten düşülür; tarih hangi aydaysa gerçekleşen tahsilat o aya yazılır.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">

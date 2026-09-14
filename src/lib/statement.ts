@@ -28,6 +28,7 @@ export type StatementData = {
 };
 
 export function statementItemLabel(payment: Payment) {
+  if (payment.note.includes("kalan")) return payment.note;
   if (payment.kind === "down_payment") return "Peşinat";
   if (payment.kind === "installment") return `${payment.installmentNo}. Taksit`;
   return payment.note.trim() || "Ödeme";

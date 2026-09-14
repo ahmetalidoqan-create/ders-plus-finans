@@ -19,7 +19,7 @@ export function getStudentPayments(payments: Payment[], studentId: string): Paym
     .sort((a, b) => {
       const rankA = a.kind === "down_payment" ? -1 : (a.installmentNo ?? 0);
       const rankB = b.kind === "down_payment" ? -1 : (b.installmentNo ?? 0);
-      return rankA - rankB || a.dueDate.localeCompare(b.dueDate);
+      return rankA - rankB || a.dueDate.localeCompare(b.dueDate) || Number(Boolean(b.paidAt)) - Number(Boolean(a.paidAt));
     });
 }
 
@@ -94,52 +94,6 @@ export type CollectionResult = {
   extraAmount: number;
 };
 
-/**
- * Applies a lump-sum collection to a student's oldest outstanding (pending/overdue)
- * installments first — deducting from their debt — and books any leftover amount
- * that doesn't fully cover the next installment as a separate realized income row.
- */
-export function applyCollectionToPayments(payments: Payment[], input: CollectionInput): CollectionResult {
-  const { studentId, amount, date, method, note } = input;
-  const outstanding = getStudentPayments(payments, studentId).filter((p) => p.status !== "paid");
-
-  let remaining = amount;
-  const paidIds = new Set<string>();
-  for (const p of outstanding) {
-    if (remaining < p.amount) break;
-    paidIds.add(p.id);
-    remaining -= p.amount;
-  }
-
-  const updated = payments.map((p) =>
-    paidIds.has(p.id) ? { ...p, paidAt: date, method, status: "paid" as const } : p,
-  );
-
-  if (remaining <= 0) {
-    return { payments: updated, coveredCount: paidIds.size, extraAmount: 0 };
-  }
-
-  const extraNote =
-    paidIds.size > 0
-      ? `${note || "Tahsilat"} (kalan/ek tutar)`
-      : note || "Aidat tahsilatı";
-
-  const extra: Payment = {
-    id: uid("pay"),
-    studentId,
-    amount: remaining,
-    dueDate: date,
-    paidAt: date,
-    method,
-    note: extraNote,
-    kind: "other",
-    installmentNo: null,
-    status: "paid",
-  };
-
-  return { payments: [extra, ...updated], coveredCount: paidIds.size, extraAmount: remaining };
-}
-
 export type InstallmentCollectionInput = {
   amount: number;
   date: string;
@@ -147,10 +101,129 @@ export type InstallmentCollectionInput = {
   note?: string;
 };
 
+function money(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 function remainderCollectionNote(payment: Payment) {
   if (payment.kind === "installment" && payment.installmentNo) return `${payment.installmentNo}. Taksit (kalan)`;
   if (payment.kind === "down_payment") return "Peşinat (kalan)";
   return `${payment.note || "Ödeme"} (kalan)`;
+}
+
+function applyCollectedAmount(
+  payments: Payment[],
+  studentId: string,
+  amount: number,
+  date: string,
+  method: PaymentMethod,
+  note: string,
+  students: Student[],
+  startPaymentId?: string,
+): CollectionResult {
+  const collected = money(amount);
+  if (!(collected > 0)) return { payments, coveredCount: 0, extraAmount: 0 };
+
+  const ordered = getStudentPayments(payments, studentId);
+  const startIdx = startPaymentId
+    ? ordered.findIndex((p) => p.id === startPaymentId)
+    : ordered.findIndex((p) => !p.paidAt);
+  if (startIdx < 0) return { payments, coveredCount: 0, extraAmount: 0 };
+  if (startPaymentId && ordered[startIdx]?.paidAt) return { payments, coveredCount: 0, extraAmount: 0 };
+
+  const queue = ordered.slice(startIdx).filter((p) => !p.paidAt);
+  let leftover = collected;
+  const byId = new Map(payments.map((p) => [p.id, p]));
+  const added: Payment[] = [];
+  let coveredCount = 0;
+
+  for (const item of queue) {
+    if (leftover <= 0) break;
+    const current = byId.get(item.id);
+    if (!current || current.paidAt) continue;
+    const due = money(current.amount);
+    if (leftover >= due) {
+      const paidNote = current.id === startPaymentId && note.trim() ? note.trim() : current.note;
+      byId.set(
+        item.id,
+        withPaymentStatus({ ...current, paidAt: date, method, note: paidNote }, students),
+      );
+      leftover = money(leftover - due);
+      coveredCount += 1;
+    } else {
+      byId.set(
+        item.id,
+        withPaymentStatus(
+          {
+            ...current,
+            amount: money(due - leftover),
+            paidAt: null,
+            method: null,
+            note: remainderCollectionNote(current),
+          },
+          students,
+        ),
+      );
+      added.push(
+        withPaymentStatus(
+          {
+            ...current,
+            id: uid("pay"),
+            amount: leftover,
+            paidAt: date,
+            method,
+            note: current.note,
+          },
+          students,
+        ),
+      );
+      leftover = 0;
+    }
+  }
+
+  let extraAmount = 0;
+  if (leftover > 0) {
+    extraAmount = leftover;
+    added.push(
+      withPaymentStatus(
+        {
+          id: uid("pay"),
+          studentId,
+          amount: leftover,
+          dueDate: date,
+          paidAt: date,
+          method,
+          note: coveredCount > 0 ? `${note || "Tahsilat"} (ek tutar)` : note || "Aidat tahsilatı",
+          kind: "other",
+          installmentNo: null,
+          status: "paid",
+        },
+        students,
+      ),
+    );
+  }
+
+  return {
+    payments: [...added, ...payments.map((p) => byId.get(p.id) ?? p)],
+    coveredCount,
+    extraAmount,
+  };
+}
+
+export function applyCollectionToPayments(
+  payments: Payment[],
+  input: CollectionInput,
+  students: Student[] = [],
+): CollectionResult {
+  return applyCollectedAmount(
+    payments,
+    input.studentId,
+    input.amount,
+    input.date,
+    input.method,
+    input.note,
+    students,
+  );
 }
 
 export function applyInstallmentCollection(
@@ -161,52 +234,16 @@ export function applyInstallmentCollection(
 ): Payment[] {
   const target = payments.find((p) => p.id === paymentId);
   if (!target || target.paidAt) return payments;
-  const collected = Math.round(Number(input.amount) * 100) / 100;
-  if (!(collected > 0)) return payments;
-
-  const original = target.amount;
-  const note = input.note?.trim() ? input.note.trim() : target.note;
-  const applied = Math.min(collected, original);
-  const paid = withPaymentStatus(
-    { ...target, amount: applied, paidAt: input.date, method: input.method, note },
+  return applyCollectedAmount(
+    payments,
+    target.studentId,
+    input.amount,
+    input.date,
+    input.method,
+    input.note ?? "",
     students,
-  );
-
-  if (collected < original) {
-    const remainder = withPaymentStatus(
-      {
-        ...target,
-        id: uid("pay"),
-        amount: original - collected,
-        paidAt: null,
-        method: null,
-        note: remainderCollectionNote(target),
-      },
-      students,
-    );
-    return [remainder, ...payments.map((p) => (p.id === paymentId ? paid : p))];
-  }
-
-  const next = payments.map((p) => (p.id === paymentId ? { ...paid, amount: original } : p));
-  const extra = collected - original;
-  if (extra <= 0) return next;
-
-  const extraRow = withPaymentStatus(
-    {
-      id: uid("pay"),
-      studentId: target.studentId,
-      amount: extra,
-      dueDate: input.date,
-      paidAt: input.date,
-      method: input.method,
-      note: `${note || "Tahsilat"} (ek tutar)`,
-      kind: "other",
-      installmentNo: null,
-      status: "paid",
-    },
-    students,
-  );
-  return [extraRow, ...next];
+    paymentId,
+  ).payments;
 }
 
 export function buildInstallmentPlanPayments(student: Student, plan: PaymentPlanInput): Payment[] {
