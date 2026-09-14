@@ -8,14 +8,15 @@ import { FormField } from "@/components/modals/FormField";
 type Props = {
   payment: Payment;
   title: string;
+  mode?: "create" | "edit";
   onClose: () => void;
   onSubmit: (input: { date: string; amount: number; method: PaymentMethod }) => void;
 };
 
-export function CollectInstallmentModal({ payment, title, onClose, onSubmit }: Props) {
-  const [date, setDate] = useState(todayISO());
+export function CollectInstallmentModal({ payment, title, mode = "create", onClose, onSubmit }: Props) {
+  const [date, setDate] = useState(mode === "edit" && payment.paidAt ? payment.paidAt : todayISO());
   const [amount, setAmount] = useState(String(payment.amount));
-  const [method, setMethod] = useState<PaymentMethod>("nakit");
+  const [method, setMethod] = useState<PaymentMethod>(payment.method ?? "nakit");
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -29,10 +30,12 @@ export function CollectInstallmentModal({ payment, title, onClose, onSubmit }: P
     <ModalShell widthClass="max-w-md">
       <form onSubmit={submit} className="space-y-3">
         <div>
-          <h2 className="text-lg font-bold">Tahsilat kaydet</h2>
+          <h2 className="text-lg font-bold">{mode === "edit" ? "Tahsilatı düzenle" : "Tahsilat kaydet"}</h2>
           <p className="mt-1 text-sm text-slate-500">
             {title} · Taksit tutarı {formatMoney(payment.amount)}. Tutarı gerekirse değiştirebilirsiniz.
-            Fazla ödeme sonraki taksitten düşülür; tarih hangi aydaysa gerçekleşen tahsilat o aya yazılır.
+            {mode === "create"
+              ? " Fazla ödeme sonraki taksitten düşülür; tarih hangi aydaysa gerçekleşen tahsilat o aya yazılır."
+              : " Tarih, tutar ve ödeme yöntemini güncelleyebilirsiniz."}
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -65,7 +68,7 @@ export function CollectInstallmentModal({ payment, title, onClose, onSubmit }: P
             Vazgeç
           </button>
           <button type="submit" className="btn-primary">
-            Tahsilatı kaydet
+            {mode === "edit" ? "Kaydet" : "Tahsilatı kaydet"}
           </button>
         </div>
       </form>

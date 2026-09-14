@@ -246,6 +246,125 @@ export function applyInstallmentCollection(
   ).payments;
 }
 
+function planGroupKey(payment: Payment) {
+  if (payment.kind === "down_payment") return "down_payment";
+  if (payment.kind === "installment") return `installment:${payment.installmentNo ?? payment.id}`;
+  return payment.id;
+}
+
+function restoredPlanNote(payment: Payment) {
+  if (payment.kind === "down_payment") return "Peşinat";
+  if (payment.kind === "installment" && payment.installmentNo) return `${payment.installmentNo}. Taksit`;
+  return payment.note.replace(/\s*\(kalan\)\s*$/i, "").trim() || "Ödeme";
+}
+
+export function revertInstallmentCollection(
+  payments: Payment[],
+  paymentId: string,
+  students: Student[],
+): Payment[] {
+  const payment = payments.find((item) => item.id === paymentId);
+  if (!payment?.paidAt) return payments;
+  if (payment.kind === "other") return payments.filter((item) => item.id !== paymentId);
+
+  const sibling = payments.find(
+    (item) =>
+      item.id !== paymentId &&
+      item.studentId === payment.studentId &&
+      planGroupKey(item) === planGroupKey(payment) &&
+      !item.paidAt,
+  );
+  if (!sibling) {
+    return payments.map((item) =>
+      item.id === paymentId
+        ? withPaymentStatus(
+            { ...item, paidAt: null, method: null, note: restoredPlanNote(item) },
+            students,
+          )
+        : item,
+    );
+  }
+  return payments
+    .filter((item) => item.id !== sibling.id)
+    .map((item) =>
+      item.id === paymentId
+        ? withPaymentStatus(
+            {
+              ...item,
+              amount: money(item.amount + sibling.amount),
+              paidAt: null,
+              method: null,
+              note: restoredPlanNote(item),
+            },
+            students,
+          )
+        : item,
+    );
+}
+
+export function updatePaymentCollection(
+  payments: Payment[],
+  paymentId: string,
+  input: InstallmentCollectionInput,
+  students: Student[],
+): Payment[] {
+  const payment = payments.find((item) => item.id === paymentId);
+  if (!payment?.paidAt) return payments;
+  return payments.map((item) =>
+    item.id === paymentId
+      ? withPaymentStatus(
+          {
+            ...item,
+            amount: money(input.amount),
+            paidAt: input.date,
+            method: input.method,
+          },
+          students,
+        )
+      : item,
+  );
+}
+
+export function clearStudentCollections(
+  payments: Payment[],
+  studentId: string,
+  students: Student[],
+): Payment[] {
+  const kept = payments.filter((item) => item.studentId !== studentId || (item.kind === "other" && !item.paidAt));
+  const planRows = payments.filter((item) => item.studentId === studentId && item.kind !== "other");
+  const merged = new Map<string, Payment>();
+  for (const row of planRows) {
+    const key = planGroupKey(row);
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(
+        key,
+        withPaymentStatus(
+          { ...row, paidAt: null, method: null, note: restoredPlanNote(row) },
+          students,
+        ),
+      );
+      continue;
+    }
+    const earlierDue = existing.dueDate <= row.dueDate ? existing.dueDate : row.dueDate;
+    merged.set(
+      key,
+      withPaymentStatus(
+        {
+          ...existing,
+          amount: money(existing.amount + row.amount),
+          dueDate: earlierDue,
+          paidAt: null,
+          method: null,
+          note: restoredPlanNote(existing),
+        },
+        students,
+      ),
+    );
+  }
+  return [...Array.from(merged.values()), ...kept];
+}
+
 export function buildInstallmentPlanPayments(student: Student, plan: PaymentPlanInput): Payment[] {
   const remaining = Math.max(student.agreementTotal - plan.downPayment, 0);
   const parts = splitEqual(remaining, plan.installmentCount);

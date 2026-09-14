@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarClock, FileText, ListChecks, PlusCircle, ScrollText, Trash2, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarClock, FileText, ListChecks, Pencil, PlusCircle, ScrollText, Trash2, Wallet } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { formatDate, formatMoney } from "@/lib/format";
 import { paymentMethodLabel } from "@/lib/constants";
@@ -34,7 +34,9 @@ export function StudentDetailPage() {
     updateStudent,
     deleteStudent,
     collectInstallment,
+    updatePaymentCollection,
     deletePaymentCollection,
+    clearStudentCollections,
     deletePayment,
     generateInstallmentPlan,
     addPayment,
@@ -45,6 +47,7 @@ export function StudentDetailPage() {
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [statementOpen, setStatementOpen] = useState(false);
   const [collecting, setCollecting] = useState<Payment | null>(null);
+  const [editingCollection, setEditingCollection] = useState<Payment | null>(null);
 
   const student = data.students.find((s) => s.id === studentId);
   if (loading) return null;
@@ -55,6 +58,7 @@ export function StudentDetailPage() {
   const rows = allRows.filter((p) => p.kind !== "other");
   const extraPayments = allRows.filter((p) => p.kind === "other");
   const frozen = isStudentFrozen(student);
+  const hasCollections = allRows.some((p) => p.status === "paid");
 
   function handleEdit(draft: StudentDraft, id?: string) {
     if (id) updateStudent({ ...draft, id });
@@ -77,6 +81,18 @@ export function StudentDetailPage() {
     });
     setReceipt(next);
     void saveReceiptToSupabase(next, student.id);
+  }
+
+  function handleUpdateCollection(p: Payment, input: { date: string; amount: number; method: PaymentMethod }) {
+    updatePaymentCollection(p.id, input);
+  }
+
+  function handleDeleteAllCollections() {
+    if (!student) return;
+    const confirmed = window.confirm(
+      `${student.fullName} için tüm tahsilatlar silinecek. Taksitler tekrar ödenmemiş görünecek. Emin misiniz?`,
+    );
+    if (confirmed) clearStudentCollections(student.id);
   }
 
   function handleDeleteCollection(p: Payment) {
@@ -197,16 +213,27 @@ export function StudentDetailPage() {
                   : "Henüz taksit planı oluşturulmadı."}
             </p>
           </div>
-          {frozen ? null : (
-            <div className="flex gap-2">
-              <button type="button" className="btn-secondary" onClick={() => setPaymentOpen(true)}>
-                <PlusCircle size={16} /> Ödeme ekle
+          <div className="flex flex-wrap gap-2">
+            {hasCollections ? (
+              <button
+                type="button"
+                className="btn-secondary text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={handleDeleteAllCollections}
+              >
+                <Trash2 size={16} /> Tüm tahsilatları sil
               </button>
-              <button type="button" className="btn-primary" onClick={() => setPlanOpen(true)}>
-                Taksit planı oluştur
-              </button>
-            </div>
-          )}
+            ) : null}
+            {frozen ? null : (
+              <>
+                <button type="button" className="btn-secondary" onClick={() => setPaymentOpen(true)}>
+                  <PlusCircle size={16} /> Ödeme ekle
+                </button>
+                <button type="button" className="btn-primary" onClick={() => setPlanOpen(true)}>
+                  Taksit planı oluştur
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {rows.length > 0 ? (
@@ -244,8 +271,15 @@ export function StudentDetailPage() {
                       ) : p.status !== "paid" && frozen ? (
                         <span className="text-xs text-sky-600">Donduruldu</span>
                       ) : (
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                           <span className="text-xs text-slate-400">{paymentMethodLabel(p.method)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCollection(p)}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                          >
+                            <Pencil size={13} /> Tahsilatı düzenle
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -337,6 +371,15 @@ export function StudentDetailPage() {
                             Tahsil et
                           </button>
                         ) : null}
+                        {p.status === "paid" ? (
+                          <button
+                            type="button"
+                            onClick={() => setEditingCollection(p)}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                          >
+                            <Pencil size={13} /> Tahsilatı düzenle
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => handleDeleteExtraPayment(p)}
@@ -375,6 +418,15 @@ export function StudentDetailPage() {
           lockStudent
           onClose={() => setPaymentOpen(false)}
           onSubmit={(payload) => addPayment(payload)}
+        />
+      ) : null}
+      {editingCollection ? (
+        <CollectInstallmentModal
+          payment={editingCollection}
+          title={paymentLabel(editingCollection)}
+          mode="edit"
+          onClose={() => setEditingCollection(null)}
+          onSubmit={(input) => handleUpdateCollection(editingCollection, input)}
         />
       ) : null}
       {collecting ? (

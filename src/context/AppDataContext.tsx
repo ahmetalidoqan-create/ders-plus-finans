@@ -32,6 +32,9 @@ import { FIXED_EXPENSES_UNTIL, withFixedTeachers } from "@/lib/constants";
 import {
   applyCollectionToPayments,
   applyInstallmentCollection,
+  clearStudentCollections,
+  revertInstallmentCollection,
+  updatePaymentCollection,
   buildInstallmentPlanPayments,
   expandFixedExpensesUntil,
   retitleInstallmentExpenses,
@@ -52,7 +55,9 @@ type AppDataContextValue = {
   markPaymentPaid: (id: string, method: NonNullable<Payment["method"]>) => void;
   collectFromStudent: (input: CollectionInput) => CollectionResult;
   collectInstallment: (paymentId: string, input: InstallmentCollectionInput) => void;
+  updatePaymentCollection: (paymentId: string, input: InstallmentCollectionInput) => void;
   deletePaymentCollection: (paymentId: string) => void;
+  clearStudentCollections: (studentId: string) => void;
   deletePayment: (paymentId: string) => void;
   addExpense: (expense: Omit<Expense, "id">) => void;
   addTeacherPayroll: (teacher: Omit<Teacher, "id"> & { id?: string }, expense: Omit<Expense, "id">) => void;
@@ -245,19 +250,31 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [data, persist],
   );
 
-  const deletePaymentCollection = useCallback(
-    (paymentId: string) => {
-      const payment = data.payments.find((p) => p.id === paymentId);
-      if (!payment) return;
-      if (payment.kind === "other") {
-        persist({ ...data, payments: data.payments.filter((p) => p.id !== paymentId) });
-        return;
-      }
+  const updatePaymentCollectionRecord = useCallback(
+    (paymentId: string, input: InstallmentCollectionInput) => {
       persist({
         ...data,
-        payments: data.payments.map((p) =>
-          p.id === paymentId ? withPaymentStatus({ ...p, paidAt: null, method: null }, data.students) : p,
-        ),
+        payments: updatePaymentCollection(data.payments, paymentId, input, data.students),
+      });
+    },
+    [data, persist],
+  );
+
+  const deletePaymentCollection = useCallback(
+    (paymentId: string) => {
+      persist({
+        ...data,
+        payments: revertInstallmentCollection(data.payments, paymentId, data.students),
+      });
+    },
+    [data, persist],
+  );
+
+  const clearStudentCollectionsRecord = useCallback(
+    (studentId: string) => {
+      persist({
+        ...data,
+        payments: clearStudentCollections(data.payments, studentId, data.students),
       });
     },
     [data, persist],
@@ -440,7 +457,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       markPaymentPaid,
       collectFromStudent,
       collectInstallment,
+      updatePaymentCollection: updatePaymentCollectionRecord,
       deletePaymentCollection,
+      clearStudentCollections: clearStudentCollectionsRecord,
       deletePayment,
       addExpense,
       addTeacherPayroll,
@@ -466,7 +485,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       markPaymentPaid,
       collectFromStudent,
       collectInstallment,
+      updatePaymentCollectionRecord,
       deletePaymentCollection,
+      clearStudentCollectionsRecord,
       deletePayment,
       addExpense,
       addTeacherPayroll,
