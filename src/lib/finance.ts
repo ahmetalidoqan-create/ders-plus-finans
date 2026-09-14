@@ -660,7 +660,7 @@ export function getClassroomRevenueRows(data: AppData, month: string): Classroom
         (p) =>
           ids.has(p.studentId) &&
           !isPaymentPaused(p, data.students) &&
-          (monthKey(p.dueDate) === month || (p.status === "overdue" && monthKey(p.dueDate) < month)),
+          monthKey(p.dueDate) === month,
       )
       .reduce((sum, p) => sum + p.amount, 0);
     const collected = data.payments
