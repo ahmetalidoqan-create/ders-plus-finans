@@ -9,9 +9,14 @@ function ratioClass(ratio: number) {
   return "bg-red-50 text-red-700";
 }
 
-export function ClassroomRevenueTable() {
+type ClassroomRevenueTableProps = {
+  month?: string;
+};
+
+export function ClassroomRevenueTable({ month: monthProp }: ClassroomRevenueTableProps) {
   const { data } = useAppData();
-  const [month, setMonth] = useState(monthKey(todayISO()));
+  const [internalMonth, setInternalMonth] = useState(monthKey(todayISO()));
+  const month = monthProp ?? internalMonth;
   const rows = useMemo(() => getClassroomRevenueRows(data, month), [data, month]);
   const totals = useMemo(
     () =>
@@ -36,13 +41,15 @@ export function ClassroomRevenueTable() {
             {formatMonthLong(month)} dönemi — yalnızca o ayın taksitlerinden beklenen ciro
           </p>
         </div>
-        <input
-          className="input w-auto min-w-[160px] py-2"
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          aria-label="Ciro dönemi"
-        />
+        {monthProp ? null : (
+          <input
+            className="input w-auto min-w-[160px] py-2"
+            type="month"
+            value={month}
+            onChange={(e) => setInternalMonth(e.target.value)}
+            aria-label="Ciro dönemi"
+          />
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-sm">

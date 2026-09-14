@@ -14,7 +14,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, formatMonthLong, monthKey, todayISO } from "@/lib/format";
 import { getCashBankSummary, getDashboardStats, getOverdueByStudent, getUpcomingPayments } from "@/lib/finance";
 import { StudentFormModal } from "@/components/modals/StudentFormModal";
 import { CollectionFormModal } from "@/components/modals/CollectionFormModal";
@@ -31,11 +31,13 @@ export function DashboardPage() {
   const { data, addStudent, collectFromStudent, collectInstallment, addExpense } = useAppData();
   const [range, setRange] = useState<Range>(7);
   const [modal, setModal] = useState<ModalKind>(null);
+  const [month, setMonth] = useState(monthKey(todayISO()));
 
-  const stats = useMemo(() => getDashboardStats(data), [data]);
-  const cashBank = useMemo(() => getCashBankSummary(data), [data]);
+  const stats = useMemo(() => getDashboardStats(data, month), [data, month]);
+  const cashBank = useMemo(() => getCashBankSummary(data, month), [data, month]);
   const upcoming = useMemo(() => getUpcomingPayments(data, range), [data, range]);
   const overdue = useMemo(() => getOverdueByStudent(data), [data]);
+  const monthLabel = formatMonthLong(month);
 
   function findStudent(id: string): Student | undefined {
     return data.students.find((s) => s.id === id);
@@ -47,13 +49,13 @@ export function DashboardPage() {
 
   const cards = [
     {
-      label: "Bu Ay Beklenen Tahsilat",
+      label: "Beklenen Tahsilat",
       value: stats.expectedThisMonth,
       icon: Wallet,
       tone: "text-brand-600 bg-brand-50",
     },
     {
-      label: "Bu Ay Gerçekleşen Tahsilat",
+      label: "Gerçekleşen Tahsilat",
       value: stats.realizedThisMonth,
       icon: BadgeCheck,
       tone: "text-emerald-600 bg-emerald-50",
@@ -71,7 +73,7 @@ export function DashboardPage() {
       tone: "text-red-600 bg-red-50",
     },
     {
-      label: "Bu Ay Toplam Gider",
+      label: "Toplam Gider",
       value: stats.expensesThisMonth,
       icon: Receipt,
       tone: "text-slate-700 bg-slate-100",
@@ -108,6 +110,22 @@ export function DashboardPage() {
         <button type="button" className="btn-secondary" onClick={() => setModal("expense")}>
           <Receipt size={16} /> Gider Ekle
         </button>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">Aylık özet</h2>
+          <p className="text-sm text-slate-500">
+            {monthLabel} — beklenen tahsilat, kasa ve banka yalnızca bu ayın tutarlarını gösterir
+          </p>
+        </div>
+        <input
+          className="input w-auto min-w-[160px] py-2"
+          type="month"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          aria-label="Özet dönemi"
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -203,7 +221,7 @@ export function DashboardPage() {
         </section>
       </div>
 
-      <ClassroomRevenueTable />
+      <ClassroomRevenueTable month={month} />
 
       {modal === "student" ? (
         <StudentFormModal

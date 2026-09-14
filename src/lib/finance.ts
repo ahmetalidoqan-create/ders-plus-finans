@@ -432,13 +432,20 @@ function overdueCarryover(payments: Payment[], month: string, students: Student[
   );
 }
 
-export function getPeriodReport(data: AppData, granularity: PeriodGranularity): PeriodReport {
-  const today = todayISO();
-  const bucket = periodBucket(today, granularity);
+export function getPeriodReport(
+  data: AppData,
+  granularity: PeriodGranularity,
+  month?: string,
+): PeriodReport {
+  const selected = month ?? monthKey(todayISO());
+  const bucket = granularity === "month" ? selected : selected.slice(0, 4);
   const due = data.payments.filter(
     (p) => periodBucket(p.dueDate, granularity) === bucket && !isPaymentPaused(p, data.students),
   );
-  const carryover = granularity === "month" ? overdueCarryover(data.payments, monthKey(today), data.students) : [];
+  const carryover =
+    granularity === "month" && month === undefined
+      ? overdueCarryover(data.payments, selected, data.students)
+      : [];
   const expected = due.reduce((sum, p) => sum + p.amount, 0);
   const realized = data.payments
     .filter((p) => p.paidAt && periodBucket(p.paidAt, granularity) === bucket)
@@ -452,18 +459,18 @@ export function getPeriodReport(data: AppData, granularity: PeriodGranularity): 
   return { expected, realized, remaining, expenses, net: realized - expenses };
 }
 
-export function getDashboardStats(data: AppData): DashboardStats {
-  const month = getPeriodReport(data, "month");
+export function getDashboardStats(data: AppData, month = monthKey(todayISO())): DashboardStats {
+  const report = getPeriodReport(data, "month", month);
   const totalOverdueDebt = data.payments
     .filter((p) => p.status === "overdue" && !isPaymentPaused(p, data.students))
     .reduce((sum, p) => sum + p.amount, 0);
   return {
-    expectedThisMonth: month.expected,
-    realizedThisMonth: month.realized,
-    remainingThisMonth: month.remaining,
+    expectedThisMonth: report.expected,
+    realizedThisMonth: report.realized,
+    remainingThisMonth: report.remaining,
     totalOverdueDebt,
-    expensesThisMonth: month.expenses,
-    netThisMonth: month.net,
+    expensesThisMonth: report.expenses,
+    netThisMonth: report.net,
   };
 }
 
@@ -518,15 +525,16 @@ export type CashBankSummary = {
   bank: number;
 };
 
-export function getCashBankSummary(data: AppData): CashBankSummary {
-  const paidAidatBy = (method: PaymentMethod) =>
+export function getCashBankSummary(data: AppData, month?: string): CashBankSummary {
+  const inMonth = (p: Payment) => !month || Boolean(p.paidAt && monthKey(p.paidAt) === month);
+  const paidAidatBy = (methods: PaymentMethod[]) =>
     data.payments
-      .filter((p) => p.status === "paid" && p.method === method)
+      .filter((p) => p.status === "paid" && p.method && methods.includes(p.method) && inMonth(p))
       .reduce((sum, p) => sum + p.amount, 0);
 
   return {
-    cash: paidAidatBy("nakit"),
-    bank: paidAidatBy("kart"),
+    cash: paidAidatBy(["nakit"]),
+    bank: paidAidatBy(["kart", "havale"]),
   };
 }
 
