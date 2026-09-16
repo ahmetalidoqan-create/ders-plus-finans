@@ -1,11 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { formatDate, formatMoney, formatMonthLong, monthKey, todayISO } from "@/lib/format";
 import { paymentMethodLabel } from "@/lib/constants";
-import { isStudentFrozen } from "@/lib/finance";
-import { PaymentFormModal } from "@/components/modals/PaymentFormModal";
 import { Avatar } from "@/components/Avatar";
 import type { Payment, PaymentMethod } from "@/types";
 
@@ -57,8 +54,7 @@ function groupPaidCollections(payments: Payment[]): CollectionRow[] {
 }
 
 export function PaymentsPage() {
-  const { data, addPayment } = useAppData();
-  const [open, setOpen] = useState(false);
+  const { data } = useAppData();
   const currentMonth = monthKey(todayISO());
 
   const paidThisMonth = useMemo(
@@ -71,16 +67,11 @@ export function PaymentsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">{formatMonthLong(currentMonth)} tahsilatları</h2>
-          <p className="text-sm text-slate-500">
-            Bu ay ödeme yapan {studentCount} öğrenci · Toplam {formatMoney(totalAmount)}
-          </p>
-        </div>
-        <button type="button" className="btn-primary" onClick={() => setOpen(true)}>
-          <Plus size={16} /> Ödeme ekle
-        </button>
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">{formatMonthLong(currentMonth)} tahsilatları</h2>
+        <p className="text-sm text-slate-500">
+          Bu ay ödeme yapan {studentCount} öğrenci · Toplam {formatMoney(totalAmount)}
+        </p>
       </div>
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
@@ -130,13 +121,6 @@ export function PaymentsPage() {
           </table>
         </div>
       </div>
-      {open ? (
-        <PaymentFormModal
-          students={data.students.filter((s) => !isStudentFrozen(s))}
-          onClose={() => setOpen(false)}
-          onSubmit={(payload) => addPayment(payload)}
-        />
-      ) : null}
     </div>
   );
 }

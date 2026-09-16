@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { MessageCircle, Search } from "lucide-react";
+import { Filter, MessageCircle, Search } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { daysBetween, formatDate, formatMoney, todayISO } from "@/lib/format";
 import { getOverduePayments } from "@/lib/finance";
@@ -44,6 +44,7 @@ function reminderUrl(row: OverdueStudent) {
 export function OverduePage() {
   const { data } = useAppData();
   const [query, setQuery] = useState("");
+  const [classroomFilter, setClassroomFilter] = useState("all");
   const overdue = getOverduePayments(data);
 
   const rows = useMemo(() => {
@@ -73,15 +74,47 @@ export function OverduePage() {
     return Array.from(byStudent.values()).sort((a, b) => b.daysOverdue - a.daysOverdue);
   }, [overdue, data.students]);
 
+  const classroomStats = useMemo(() => {
+    const map = new Map<string, { classroom: string; students: number; amount: number }>();
+    for (const row of rows) {
+      const classroom = row.student.classroom.trim() || "Sınıf belirtilmedi";
+      const existing = map.get(classroom);
+      if (existing) {
+        existing.students += 1;
+        existing.amount += row.totalAmount;
+      } else {
+        map.set(classroom, { classroom, students: 1, amount: row.totalAmount });
+      }
+    }
+    return Array.from(map.values()).sort(
+      (a, b) => b.amount - a.amount || a.classroom.localeCompare(b.classroom, "tr"),
+    );
+  }, [rows]);
+
+  const totalOverdue = classroomStats.reduce((sum, item) => sum + item.amount, 0);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("tr");
-    if (!q) return rows;
-    return rows.filter((row) => row.student.fullName.toLocaleLowerCase("tr").includes(q));
-  }, [rows, query]);
+    return rows.filter((row) => {
+      const classroom = row.student.classroom.trim() || "Sınıf belirtilmedi";
+      const matchesClass = classroomFilter === "all" || classroom === classroomFilter;
+      const matchesQuery = !q || row.student.fullName.toLocaleLowerCase("tr").includes(q);
+      return matchesClass && matchesQuery;
+    });
+  }, [rows, query, classroomFilter]);
+
+  const emptyMessage =
+    rows.length === 0
+      ? "Geciken öğrenci bulunmuyor."
+      : classroomFilter !== "all" && filtered.length === 0 && !query.trim()
+        ? "Bu sınıfta geciken öğrenci yok."
+        : "Aramayla eşleşen öğrenci yok.";
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-500">Vadesi geçmiş öğrenciler. İsme göre arayıp hatırlatma gönderebilirsiniz.</p>
+      <p className="text-sm text-slate-500">
+        Vadesi geçmiş öğrenciler. Sınıfa göre süzüp isme göre arayabilir, hatırlatma gönderebilirsiniz.
+      </p>
 
       <div className="relative max-w-sm">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -91,6 +124,47 @@ export function OverduePage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+      </div>
+
+      <div className="space-y-2">
+        <span className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <Filter size={13} /> Sınıf gecikmesi
+        </span>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setClassroomFilter("all")}
+            className={`rounded-xl border px-3 py-2 text-left transition ${
+              classroomFilter === "all"
+                ? "border-brand-500 bg-brand-50 shadow-sm"
+                : "border-slate-200 bg-white hover:bg-slate-50"
+            }`}
+          >
+            <p className={`text-xs font-semibold ${classroomFilter === "all" ? "text-brand-700" : "text-slate-500"}`}>
+              Tüm sınıflar
+            </p>
+            <p className="mt-0.5 text-sm font-bold text-red-600">{formatMoney(totalOverdue)}</p>
+          </button>
+          {classroomStats.map((item) => {
+            const selected = classroomFilter === item.classroom;
+            return (
+              <button
+                key={item.classroom}
+                type="button"
+                onClick={() => setClassroomFilter(item.classroom)}
+                className={`rounded-xl border px-3 py-2 text-left transition ${
+                  selected ? "border-brand-500 bg-brand-50 shadow-sm" : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <p className={`text-xs font-semibold ${selected ? "text-brand-700" : "text-slate-500"}`}>
+                  {item.classroom}
+                  <span className="font-medium text-slate-400"> · {item.students} öğrenci</span>
+                </p>
+                <p className="mt-0.5 text-sm font-bold text-red-600">{formatMoney(item.amount)}</p>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="card overflow-hidden">
@@ -153,7 +227,7 @@ export function OverduePage() {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
-                    {rows.length === 0 ? "Geciken öğrenci bulunmuyor." : "Aramayla eşleşen öğrenci yok."}
+                    {emptyMessage}
                   </td>
                 </tr>
               ) : null}
