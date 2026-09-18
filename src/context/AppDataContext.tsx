@@ -23,6 +23,7 @@ import { useAuth } from "@/context/AuthContext";
 import { CURRENT_DATA_VERSION, emptyAppData, seedData } from "@/lib/storage";
 import {
   clearFinanceInSupabase,
+  formatSupabaseSyncError,
   loadAppDataFromSupabase,
   subscribeToFinanceChanges,
   syncAppDataToSupabase,
@@ -138,7 +139,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     void syncAppDataToSupabase(next)
       .then(() => setSyncError(null))
       .catch((error: unknown) => {
-        setSyncError(error instanceof Error ? error.message : "Supabase kaydı başarısız.");
+        setSyncError(formatSupabaseSyncError(error));
       })
       .finally(() => {
         window.setTimeout(() => {
@@ -164,7 +165,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         }
       } catch (error: unknown) {
         if (!cancelled) {
-          setSyncError(error instanceof Error ? error.message : "Supabase verileri yüklenemedi.");
+          setSyncError(formatSupabaseSyncError(error) || "Supabase verileri yüklenemedi.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -418,7 +419,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     void clearFinanceInSupabase(data.settings)
       .then(() => setSyncError(null))
       .catch((error: unknown) => {
-        setSyncError(error instanceof Error ? error.message : "Supabase temizliği başarısız.");
+        setSyncError(formatSupabaseSyncError(error) || "Supabase temizliği başarısız.");
       })
       .finally(() => {
         window.setTimeout(() => {

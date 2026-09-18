@@ -188,6 +188,19 @@ async function upsertRows(table: string, rows: Record<string, unknown>[]) {
   if (error) throw error;
 }
 
+export function formatSupabaseSyncError(error: unknown): string {
+  const raw =
+    error && typeof error === "object" && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : error instanceof Error
+        ? error.message
+        : "";
+  if (/column .*tc.* does not exist/i.test(raw) || /\btc\b.*does not exist/i.test(raw)) {
+    return "Veritabanında T.C. kolonu yok. Supabase → SQL Editor’de şunu çalıştırın: alter table public.students add column if not exists tc text not null default '';";
+  }
+  return raw.trim() || "Supabase kaydı başarısız.";
+}
+
 async function deleteMissing(table: string, rows: Record<string, unknown>[]) {
   const { data: existing, error: readError } = await supabase.from(table).select("id");
   if (readError) throw readError;
