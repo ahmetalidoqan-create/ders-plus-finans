@@ -15,6 +15,7 @@ type Props = {
 
 export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
   const [fullName, setFullName] = useState(initial?.fullName ?? "");
+  const [tc, setTc] = useState(initial?.tc ?? "");
   const [parentName, setParentName] = useState(initial?.parentName ?? "");
   const [parentPhone, setParentPhone] = useState(initial?.parentPhone ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
@@ -23,6 +24,7 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
   const [joinedAt, setJoinedAt] = useState(initial?.joinedAt ?? todayISO());
   const [photoUrl, setPhotoUrl] = useState<string | null>(initial?.photoUrl ?? null);
   const [photoUrlInput, setPhotoUrlInput] = useState(initial?.photoUrl ?? "");
+  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -50,8 +52,19 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
 
   function submit(e: FormEvent) {
     e.preventDefault();
+    const normalizedTc = tc.replace(/\D/g, "");
+    if (!normalizedTc) {
+      setError("T.C. kimlik no zorunludur (panel aidat eşleştirmesi için).");
+      return;
+    }
+    if (normalizedTc.length !== 11 || normalizedTc[0] === "0") {
+      setError("T.C. kimlik no 11 haneli olmalı ve 0 ile başlamamalı.");
+      return;
+    }
+    setError("");
     const draft: StudentDraft = {
       fullName,
+      tc: normalizedTc,
       email: initial?.email ?? "",
       phone: phone.trim(),
       parentName: parentName.trim(),
@@ -117,6 +130,23 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
           <FormField label="Ad soyad">
             <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
           </FormField>
+          <FormField label="T.C. kimlik no (zorunlu)">
+            <input
+              className="input font-mono"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={11}
+              required
+              value={tc}
+              onChange={(e) => {
+                setTc(e.target.value.replace(/\D/g, "").slice(0, 11));
+                setError("");
+              }}
+              placeholder="11 haneli T.C."
+              autoComplete="off"
+            />
+          </FormField>
           <FormField label="Veli adı">
             <input
               className="input"
@@ -174,6 +204,10 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
             />
           </FormField>
         </div>
+        {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          T.C. numarası paneldeki öğrenci T.C. ile aynı olmalı; veli Aidat sayfasında taksitleri bu numarayla görür.
+        </p>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className="btn-secondary" onClick={onClose}>
             Vazgeç

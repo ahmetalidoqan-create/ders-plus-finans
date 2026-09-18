@@ -33,6 +33,7 @@ export const seedData: AppData = {
     {
       id: "st_001",
       fullName: "Elif Yılmaz",
+      tc: "10000000146",
       email: "elif.yilmaz@email.com",
       phone: "0532 111 22 33",
       parentName: "",
@@ -51,6 +52,7 @@ export const seedData: AppData = {
     {
       id: "st_002",
       fullName: "Mert Kaya",
+      tc: "10000000213",
       email: "mert.kaya@email.com",
       phone: "0541 444 55 66",
       parentName: "",
@@ -69,6 +71,7 @@ export const seedData: AppData = {
     {
       id: "st_003",
       fullName: "Zeynep Demir",
+      tc: "10000000384",
       email: "zeynep.demir@email.com",
       phone: "0507 777 88 99",
       parentName: "",
@@ -87,6 +90,7 @@ export const seedData: AppData = {
     {
       id: "st_004",
       fullName: "Can Özkan",
+      tc: "10000000451",
       email: "can.ozkan@email.com",
       phone: "0533 222 11 00",
       parentName: "",
@@ -105,6 +109,7 @@ export const seedData: AppData = {
     {
       id: "st_005",
       fullName: "Selin Aydın",
+      tc: "10000000528",
       email: "selin.aydin@email.com",
       phone: "0505 333 44 55",
       parentName: "",

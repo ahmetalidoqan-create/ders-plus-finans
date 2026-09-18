@@ -21,6 +21,7 @@ function mapStudent(row: Record<string, unknown>): Student {
   return {
     id: String(row.id),
     fullName: String(row.full_name ?? ""),
+    tc: String(row.tc ?? "").replace(/\D/g, ""),
     email: String(row.email ?? "").includes("@") ? String(row.email ?? "") : "",
     phone: String(row.phone ?? ""),
     parentName: parentNameFromRow(row),
@@ -42,6 +43,7 @@ function studentRow(student: Student) {
   return {
     id: student.id,
     full_name: student.fullName,
+    tc: String(student.tc ?? "").replace(/\D/g, ""),
     email: student.parentName || student.email,
     phone: student.phone,
     parent_phone: student.parentPhone,

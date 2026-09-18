@@ -13,6 +13,7 @@ create table if not exists public.app_settings (
 create table if not exists public.students (
   id text primary key,
   full_name text not null,
+  tc text not null default '',
   email text not null default '',
   phone text not null default '',
   parent_phone text not null default '',
@@ -27,6 +28,9 @@ create table if not exists public.students (
   joined_at date,
   photo_url text
 );
+
+alter table public.students add column if not exists tc text not null default '';
+create index if not exists students_tc_idx on public.students (tc);
 
 create table if not exists public.teachers (
   id text primary key,

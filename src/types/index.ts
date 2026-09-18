@@ -6,6 +6,8 @@ export type PaymentKind = "down_payment" | "installment" | "other";
 export type Student = {
   id: string;
   fullName: string;
+  /** 11 haneli T.C. — panel aidat eşleştirmesi için */
+  tc: string;
   email: string;
   phone: string;
   parentName: string;

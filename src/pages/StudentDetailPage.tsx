@@ -147,6 +147,12 @@ export function StudentDetailPage() {
               {[student.classroom, student.course].filter(Boolean).join(" · ")}
             </p>
             <p className="mt-1 text-sm text-slate-500">
+              T.C.: {student.tc ? <span className="font-mono text-slate-700">{student.tc}</span> : "—"}
+              {!student.tc ? (
+                <span className="ml-1 text-amber-600">(panel aidat eşleştirmesi için ekleyin)</span>
+              ) : null}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
               Veli: {student.parentName || "—"}
             </p>
             <p className="mt-1 text-sm text-slate-500">

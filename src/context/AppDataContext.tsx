@@ -90,6 +90,7 @@ function normalizeExpense(expense: Expense): Expense {
 function normalizeStudent(student: Student): Student {
   return {
     ...student,
+    tc: String(student.tc ?? "").replace(/\D/g, ""),
     photoUrl: student.photoUrl === undefined ? null : student.photoUrl,
     parentName: student.parentName ?? "",
     parentPhone: student.parentPhone ?? "",
