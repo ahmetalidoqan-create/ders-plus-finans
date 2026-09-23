@@ -38,7 +38,6 @@ import {
   updatePaymentCollection,
   buildInstallmentPlanPayments,
   expandFixedExpensesUntil,
-  retitleInstallmentExpenses,
   withPaymentStatus,
   type CollectionInput,
   type CollectionResult,
@@ -121,7 +120,6 @@ function ensureFixedExpenses(data: AppData): AppData {
     expenses = expandFixedExpensesUntil(expenses, FIXED_EXPENSES_UNTIL);
     settings = { ...settings, fixedExpensesUntil: FIXED_EXPENSES_UNTIL };
   }
-  expenses = retitleInstallmentExpenses(expenses);
   if (expenses === data.expenses && settings === data.settings) return data;
   return { ...data, expenses, settings };
 }
@@ -177,8 +175,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const writingRef = useRef(false);
   const photosReadyRef = useRef(false);
+  const writeGenRef = useRef(0);
 
   const persist = useCallback((next: AppData) => {
+    writeGenRef.current += 1;
     setData(next);
     writeCachedAppData(next);
     writingRef.current = true;
@@ -226,9 +226,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
 
     async function hydrate() {
+      const gen = writeGenRef.current;
       try {
         const remote = migrateLoadedData(await loadAppDataFromSupabase());
-        if (cancelled || writingRef.current) return;
+        if (cancelled || writingRef.current || gen !== writeGenRef.current) return;
         const next = ensureFixedExpenses(remote);
         setData((prev) => keepExistingPhotos(next, prev));
         writeCachedAppData(next);

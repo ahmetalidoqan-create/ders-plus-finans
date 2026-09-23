@@ -722,42 +722,6 @@ function isTeacherPayrollExpense(expense: Expense) {
   return titleHas(expense.title, "hakedis");
 }
 
-function earliestMonth(expenses: Expense[]) {
-  return expenses.reduce<string | null>((min, expense) => {
-    const key = monthKey(expense.date);
-    if (!min || key < min) return key;
-    return min;
-  }, null);
-}
-
-export function retitleInstallmentExpenses(expenses: Expense[]): Expense[] {
-  const vergiFirst = earliestMonth(expenses.filter(isVergiExpense));
-  const sigortaFirst = earliestMonth(expenses.filter(isSigortaExpense));
-  if (!vergiFirst && !sigortaFirst) return expenses;
-
-  let changed = false;
-  const next = expenses.map((expense) => {
-    if (isVergiExpense(expense) && vergiFirst) {
-      const n = monthIndex(monthKey(expense.date)) - monthIndex(vergiFirst) + 1;
-      const title = `VERGİ ${n}. TAKSİTİ`;
-      if (expense.title !== title) {
-        changed = true;
-        return { ...expense, title };
-      }
-    } else if (isSigortaExpense(expense) && sigortaFirst) {
-      const n = monthIndex(monthKey(expense.date)) - monthIndex(sigortaFirst) + 1;
-      const title = `SİGORTA ÖDEMESİ ${n}. TAKSİT`;
-      if (expense.title !== title) {
-        changed = true;
-        return { ...expense, title };
-      }
-    }
-    return expense;
-  });
-
-  return changed ? next : expenses;
-}
-
 export function expandFixedExpensesUntil(expenses: Expense[], untilDate: string): Expense[] {
   const generated: Expense[] = [];
 
