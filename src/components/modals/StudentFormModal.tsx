@@ -13,6 +13,33 @@ type Props = {
   onSubmit: (draft: StudentDraft, id?: string) => void;
 };
 
+function compressStudentPhoto(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    image.onload = () => {
+      const maxEdge = 320;
+      const scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const ctx = canvas.getContext("2d");
+      URL.revokeObjectURL(objectUrl);
+      if (!ctx) {
+        reject(new Error("canvas"));
+        return;
+      }
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.7));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("image"));
+    };
+    image.src = objectUrl;
+  });
+}
+
 export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
   const [fullName, setFullName] = useState(initial?.fullName ?? "");
   const [tc, setTc] = useState(initial?.tc ?? "");
@@ -31,13 +58,20 @@ export function StudentFormModal({ initial, onClose, onSubmit }: Props) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result);
-      setPhotoUrl(result);
-      setPhotoUrlInput(result);
-    };
-    reader.readAsDataURL(file);
+    void compressStudentPhoto(file)
+      .then((result) => {
+        setPhotoUrl(result);
+        setPhotoUrlInput(result);
+      })
+      .catch(() => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = String(reader.result);
+          setPhotoUrl(result);
+          setPhotoUrlInput(result);
+        };
+        reader.readAsDataURL(file);
+      });
   }
 
   function applyUrlInput(value: string) {

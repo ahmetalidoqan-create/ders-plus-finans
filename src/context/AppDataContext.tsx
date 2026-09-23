@@ -19,12 +19,12 @@ import type {
   Teacher,
   TeacherLesson,
 } from "@/types";
-import { useAuth } from "@/context/AuthContext";
 import { CURRENT_DATA_VERSION, emptyAppData, seedData } from "@/lib/storage";
 import {
   clearFinanceInSupabase,
   formatSupabaseSyncError,
   loadAppDataFromSupabase,
+  loadStudentPhotosFromSupabase,
   subscribeToFinanceChanges,
   syncAppDataToSupabase,
 } from "@/lib/supabaseRepo";
@@ -126,17 +126,63 @@ function ensureFixedExpenses(data: AppData): AppData {
   return { ...data, expenses, settings };
 }
 
+const APP_CACHE_KEY = "dersplus_app_cache_v1";
+
+function readCachedAppData(): AppData | null {
+  try {
+    const raw = sessionStorage.getItem(APP_CACHE_KEY);
+    if (!raw) return null;
+    return migrateLoadedData(JSON.parse(raw) as Partial<AppData>);
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedAppData(data: AppData) {
+  try {
+    const slim: AppData = {
+      ...data,
+      students: data.students.map((student) => ({
+        ...student,
+        photoUrl: student.photoUrl && !student.photoUrl.startsWith("data:") ? student.photoUrl : null,
+      })),
+    };
+    sessionStorage.setItem(APP_CACHE_KEY, JSON.stringify(slim));
+  } catch {
+    /* quota or private mode */
+  }
+}
+
+function keepExistingPhotos(incoming: AppData, previous: AppData): AppData {
+  if (!previous.students.length) return incoming;
+  const previousPhotos = new Map(previous.students.map((student) => [student.id, student.photoUrl]));
+  return {
+    ...incoming,
+    students: incoming.students.map((student) => ({
+      ...student,
+      photoUrl: student.photoUrl ?? previousPhotos.get(student.id) ?? null,
+    })),
+  };
+}
+
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const [data, setData] = useState<AppData>(() => emptyAppData());
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<AppData>(() => readCachedAppData() ?? emptyAppData());
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !sessionStorage.getItem(APP_CACHE_KEY);
+    } catch {
+      return true;
+    }
+  });
   const [syncError, setSyncError] = useState<string | null>(null);
   const writingRef = useRef(false);
+  const photosReadyRef = useRef(false);
 
   const persist = useCallback((next: AppData) => {
     setData(next);
+    writeCachedAppData(next);
     writingRef.current = true;
-    void syncAppDataToSupabase(next)
+    void syncAppDataToSupabase(next, { includePhotos: photosReadyRef.current })
       .then(() => setSyncError(null))
       .catch((error: unknown) => {
         setSyncError(formatSupabaseSyncError(error));
@@ -150,19 +196,58 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    let debounce = 0;
+
+    async function applyPhotos() {
+      try {
+        const photos = await loadStudentPhotosFromSupabase();
+        if (cancelled) return;
+        if (writingRef.current) {
+          window.setTimeout(() => {
+            if (!cancelled) void applyPhotos();
+          }, 500);
+          return;
+        }
+        photosReadyRef.current = true;
+        if (photos.size === 0) return;
+        setData((prev) => {
+          let changed = false;
+          const students = prev.students.map((student) => {
+            const photoUrl = photos.get(student.id);
+            if (student.photoUrl || !photoUrl) return student;
+            changed = true;
+            return { ...student, photoUrl };
+          });
+          return changed ? { ...prev, students } : prev;
+        });
+      } catch {
+        photosReadyRef.current = true;
+      }
+    }
 
     async function hydrate() {
       try {
         const remote = migrateLoadedData(await loadAppDataFromSupabase());
-        if (cancelled) return;
+        if (cancelled || writingRef.current) return;
         const next = ensureFixedExpenses(remote);
-        setData(next);
+        setData((prev) => keepExistingPhotos(next, prev));
+        writeCachedAppData(next);
         setSyncError(null);
+        setLoading(false);
         if (next !== remote) {
           writingRef.current = true;
-          await syncAppDataToSupabase(next);
-          writingRef.current = false;
+          void syncAppDataToSupabase(next, { includePhotos: photosReadyRef.current })
+            .then(() => setSyncError(null))
+            .catch((error: unknown) => {
+              if (!cancelled) setSyncError(formatSupabaseSyncError(error));
+            })
+            .finally(() => {
+              window.setTimeout(() => {
+                writingRef.current = false;
+              }, 400);
+            });
         }
+        void applyPhotos();
       } catch (error: unknown) {
         if (!cancelled) {
           setSyncError(formatSupabaseSyncError(error) || "Supabase verileri yüklenemedi.");
@@ -175,13 +260,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     void hydrate();
     const unsubscribe = subscribeToFinanceChanges(() => {
       if (writingRef.current) return;
-      void hydrate();
+      window.clearTimeout(debounce);
+      debounce = window.setTimeout(() => {
+        if (!writingRef.current && !cancelled) void hydrate();
+      }, 500);
     });
     return () => {
       cancelled = true;
+      window.clearTimeout(debounce);
       unsubscribe();
     };
-  }, [user]);
+  }, []);
 
   const addStudent = useCallback(
     (student: StudentDraft) => {

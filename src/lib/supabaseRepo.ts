@@ -39,8 +39,8 @@ function mapStudent(row: Record<string, unknown>): Student {
   };
 }
 
-function studentRow(student: Student) {
-  return {
+function studentRow(student: Student, includePhotos = true) {
+  const row: Record<string, unknown> = {
     id: student.id,
     full_name: student.fullName,
     tc: String(student.tc ?? "").replace(/\D/g, ""),
@@ -56,8 +56,13 @@ function studentRow(student: Student) {
     first_installment_date: student.firstInstallmentDate,
     status: student.status,
     joined_at: student.joinedAt,
-    photo_url: student.photoUrl,
   };
+  if (student.photoUrl) {
+    row.photo_url = student.photoUrl;
+  } else if (includePhotos) {
+    row.photo_url = null;
+  }
+  return row;
 }
 
 function mapPayment(row: Record<string, unknown>): Payment {
@@ -182,10 +187,39 @@ function settingsRow(settings: AppSettings) {
   };
 }
 
+const PAGE_SIZE = 1000;
+const STUDENT_COLUMNS =
+  "id, full_name, tc, email, phone, parent_phone, classroom, course, monthly_fee, agreement_total, down_payment, installment_count, first_installment_date, status, joined_at";
+const PAYMENT_COLUMNS = "id, student_id, amount, due_date, paid_at, status, method, note, kind, installment_no";
+const EXPENSE_COLUMNS = "id, title, category, amount, date, note, method";
+const TEACHER_COLUMNS = "id, full_name, pay_type, monthly_salary, hourly_rate";
+const LESSON_COLUMNS = "id, teacher_id, date, hours, note";
+const SETTINGS_COLUMNS =
+  "academy_name, city, currency, logo_icon, contact_phone, contact_email, address, fixed_expenses_until";
+
+async function fetchAll<T extends Record<string, unknown>>(
+  table: string,
+  columns: string,
+  pageSize = PAGE_SIZE,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase.from(table).select(columns).range(from, from + pageSize - 1);
+    if (error) throw error;
+    const page = (data ?? []) as unknown as T[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return rows;
+}
+
 async function upsertRows(table: string, rows: Record<string, unknown>[]) {
   if (!rows.length) return;
-  const { error } = await supabase.from(table).upsert(rows);
-  if (error) throw error;
+  const chunkSize = 200;
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const { error } = await supabase.from(table).upsert(rows.slice(i, i + chunkSize));
+    if (error) throw error;
+  }
 }
 
 export function formatSupabaseSyncError(error: unknown): string {
@@ -202,10 +236,9 @@ export function formatSupabaseSyncError(error: unknown): string {
 }
 
 async function deleteMissing(table: string, rows: Record<string, unknown>[]) {
-  const { data: existing, error: readError } = await supabase.from(table).select("id");
-  if (readError) throw readError;
+  const existing = await fetchAll<{ id: string }>(table, "id");
   const nextIds = new Set(rows.map((row) => String(row.id)));
-  const removed = (existing ?? []).map((row) => String(row.id)).filter((id) => !nextIds.has(id));
+  const removed = existing.map((row) => String(row.id)).filter((id) => !nextIds.has(id));
   if (!removed.length) return;
   const { error } = await supabase.from(table).delete().in("id", removed);
   if (error) throw error;
@@ -216,41 +249,69 @@ async function replaceRows(table: string, rows: Record<string, unknown>[]) {
   await upsertRows(table, rows);
 }
 
-export async function loadAppDataFromSupabase(): Promise<AppData> {
-  const [settingsRes, studentsRes, paymentsRes, expensesRes, teachersRes, lessonsRes] = await Promise.all([
-    supabase.from("app_settings").select("*").eq("id", "default").maybeSingle(),
-    supabase.from("students").select("*"),
-    supabase.from("payments").select("*"),
-    supabase.from("expenses").select("*"),
-    supabase.from("teachers").select("*"),
-    supabase.from("teacher_lessons").select("*"),
-  ]);
-
-  const firstError =
-    settingsRes.error ?? studentsRes.error ?? paymentsRes.error ?? expensesRes.error ?? teachersRes.error ?? lessonsRes.error;
-  if (firstError) {
-    if (firstError.code === "PGRST205" || firstError.message.includes("schema cache")) {
-      throw new Error(
-        "Supabase tabloları henüz yok. Supabase SQL Editor’da supabase/schema.sql dosyasını çalıştırın.",
-      );
-    }
-    throw firstError;
+function throwIfSchemaMissing(error: { code?: string; message: string }) {
+  if (error.code === "PGRST205" || error.message.includes("schema cache")) {
+    throw new Error(
+      "Supabase tabloları henüz yok. Supabase SQL Editor’da supabase/schema.sql dosyasını çalıştırın.",
+    );
   }
-
-  return {
-    version: CURRENT_DATA_VERSION,
-    settings: mapSettings(settingsRes.data as Record<string, unknown> | null),
-    students: (studentsRes.data ?? []).map((row) => mapStudent(row as Record<string, unknown>)),
-    payments: (paymentsRes.data ?? []).map((row) => mapPayment(row as Record<string, unknown>)),
-    expenses: (expensesRes.data ?? []).map((row) => mapExpense(row as Record<string, unknown>)),
-    teachers: withFixedTeachers((teachersRes.data ?? []).map((row) => mapTeacher(row as Record<string, unknown>))),
-    teacherLessons: (lessonsRes.data ?? []).map((row) => mapLesson(row as Record<string, unknown>)),
-  };
+  throw error;
 }
 
-export async function syncAppDataToSupabase(data: AppData) {
+export async function loadAppDataFromSupabase(): Promise<AppData> {
+  try {
+    const [settingsRes, students, payments, expenses, teachers, lessons] = await Promise.all([
+      supabase.from("app_settings").select(SETTINGS_COLUMNS).eq("id", "default").maybeSingle(),
+      fetchAll("students", STUDENT_COLUMNS),
+      fetchAll("payments", PAYMENT_COLUMNS),
+      fetchAll("expenses", EXPENSE_COLUMNS),
+      fetchAll("teachers", TEACHER_COLUMNS),
+      fetchAll("teacher_lessons", LESSON_COLUMNS),
+    ]);
+    if (settingsRes.error) throw settingsRes.error;
+
+    return {
+      version: CURRENT_DATA_VERSION,
+      settings: mapSettings(settingsRes.data as Record<string, unknown> | null),
+      students: students.map((row) => mapStudent(row)),
+      payments: payments.map((row) => mapPayment(row)),
+      expenses: expenses.map((row) => mapExpense(row)),
+      teachers: withFixedTeachers(teachers.map((row) => mapTeacher(row))),
+      teacherLessons: lessons.map((row) => mapLesson(row)),
+    };
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "message" in error) {
+      throwIfSchemaMissing(error as { code?: string; message: string });
+    }
+    throw error;
+  }
+}
+
+export async function loadStudentPhotosFromSupabase(): Promise<Map<string, string>> {
+  const rows: { id: string; photo_url: string }[] = [];
+  const pageSize = 100;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("students")
+      .select("id, photo_url")
+      .not("photo_url", "is", null)
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const page = (data ?? []) as { id: string; photo_url: string }[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return new Map(
+    rows
+      .filter((row) => row.photo_url)
+      .map((row) => [String(row.id), String(row.photo_url)]),
+  );
+}
+
+export async function syncAppDataToSupabase(data: AppData, options?: { includePhotos?: boolean }) {
+  const includePhotos = options?.includePhotos ?? true;
   const teachers = withFixedTeachers(data.teachers).map(teacherRow);
-  const students = data.students.map(studentRow);
+  const students = data.students.map((student) => studentRow(student, includePhotos));
   const payments = data.payments.map(paymentRow);
   const expenses = data.expenses.map(expenseRow);
   const lessons = data.teacherLessons.map(lessonRow);
@@ -258,13 +319,13 @@ export async function syncAppDataToSupabase(data: AppData) {
   const { error: settingsError } = await supabase.from("app_settings").upsert(settingsRow(data.settings));
   if (settingsError) throw settingsError;
 
-  await upsertRows("teachers", teachers);
-  await upsertRows("students", students);
-  await replaceRows("payments", payments);
-  await replaceRows("teacher_lessons", lessons);
-  await replaceRows("expenses", expenses);
-  await deleteMissing("students", students);
-  await deleteMissing("teachers", teachers);
+  await Promise.all([upsertRows("teachers", teachers), upsertRows("students", students)]);
+  await Promise.all([
+    replaceRows("payments", payments),
+    replaceRows("teacher_lessons", lessons),
+    replaceRows("expenses", expenses),
+  ]);
+  await Promise.all([deleteMissing("students", students), deleteMissing("teachers", teachers)]);
 }
 
 export async function clearFinanceInSupabase(settings: AppSettings) {
@@ -310,7 +371,6 @@ export function subscribeToFinanceChanges(onChange: () => void) {
     .on("postgres_changes", { event: "*", schema: "public", table: "teachers" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "teacher_lessons" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "receipts" }, onChange)
     .subscribe();
   return () => {
     void supabase.removeChannel(channel);
