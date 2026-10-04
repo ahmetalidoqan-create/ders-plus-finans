@@ -649,10 +649,17 @@ export type ClassroomRevenueRow = {
   ratio: number;
 };
 
+const DENEME_CLUB_LABEL = "Deneme Kulübü";
+
+function classroomRevenueGroup(classroom: string) {
+  const key = classroom.trim() || "Sınıf belirtilmedi";
+  return foldTr(key).includes("deneme") ? DENEME_CLUB_LABEL : key;
+}
+
 export function getClassroomRevenueRows(data: AppData, month: string): ClassroomRevenueRow[] {
   const byClass = new Map<string, Student[]>();
   data.students.forEach((student) => {
-    const key = student.classroom.trim() || "Sınıf belirtilmedi";
+    const key = classroomRevenueGroup(student.classroom);
     const list = byClass.get(key) ?? [];
     list.push(student);
     byClass.set(key, list);
