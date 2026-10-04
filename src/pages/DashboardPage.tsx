@@ -3,19 +3,15 @@ import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   BadgeCheck,
-  Banknote,
   Clock3,
   HandCoins,
-  Landmark,
   Receipt,
-  TrendingDown,
-  TrendingUp,
   UserPlus,
   Wallet,
 } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { formatDate, formatMoney, formatMonthLong, monthKey, todayISO } from "@/lib/format";
-import { getCashBankSummary, getDashboardStats, getOverdueByStudent, getUpcomingPayments } from "@/lib/finance";
+import { getDashboardStats, getOverdueByStudent, getUpcomingPayments } from "@/lib/finance";
 import { StudentFormModal } from "@/components/modals/StudentFormModal";
 import { CollectionFormModal } from "@/components/modals/CollectionFormModal";
 import { ExpenseFormModal } from "@/components/modals/ExpenseFormModal";
@@ -34,7 +30,6 @@ export function DashboardPage() {
   const [month, setMonth] = useState(monthKey(todayISO()));
 
   const stats = useMemo(() => getDashboardStats(data, month), [data, month]);
-  const cashBank = useMemo(() => getCashBankSummary(data, month), [data, month]);
   const upcoming = useMemo(() => getUpcomingPayments(data, range), [data, range]);
   const overdue = useMemo(() => getOverdueByStudent(data), [data]);
   const monthLabel = formatMonthLong(month);
@@ -42,10 +37,6 @@ export function DashboardPage() {
   function findStudent(id: string): Student | undefined {
     return data.students.find((s) => s.id === id);
   }
-
-  const netPositive = stats.netThisMonth >= 0;
-  const cashPositive = cashBank.cash >= 0;
-  const bankPositive = cashBank.bank >= 0;
 
   const cards = [
     {
@@ -72,30 +63,6 @@ export function DashboardPage() {
       icon: AlertTriangle,
       tone: "text-red-600 bg-red-50",
     },
-    {
-      label: "Toplam Gider",
-      value: stats.expensesThisMonth,
-      icon: Receipt,
-      tone: "text-slate-700 bg-slate-100",
-    },
-    {
-      label: "Net Durum",
-      value: stats.netThisMonth,
-      icon: netPositive ? TrendingUp : TrendingDown,
-      tone: netPositive ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50",
-    },
-    {
-      label: "Kasadaki Nakit",
-      value: cashBank.cash,
-      icon: Banknote,
-      tone: cashPositive ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50",
-    },
-    {
-      label: "Bankadaki Tutar",
-      value: cashBank.bank,
-      icon: Landmark,
-      tone: bankPositive ? "text-sky-600 bg-sky-50" : "text-red-600 bg-red-50",
-    },
   ];
 
   return (
@@ -116,7 +83,7 @@ export function DashboardPage() {
         <div>
           <h2 className="font-semibold">Aylık özet</h2>
           <p className="text-sm text-slate-500">
-            {monthLabel} — beklenen tahsilat, kasa ve banka yalnızca bu ayın tutarlarını gösterir
+            {monthLabel} — beklenen tahsilat yalnızca bu ayın taksitlerini gösterir
           </p>
         </div>
         <input
