@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAppData } from "@/context/AppDataContext";
 import { formatDate, formatMoney, formatMonthLong, monthKey, todayISO } from "@/lib/format";
@@ -56,22 +56,47 @@ function groupPaidCollections(payments: Payment[]): CollectionRow[] {
 export function PaymentsPage() {
   const { data } = useAppData();
   const currentMonth = monthKey(todayISO());
+  const [selectedDay, setSelectedDay] = useState("");
 
-  const paidThisMonth = useMemo(
-    () => data.payments.filter((p) => p.status === "paid" && p.paidAt && monthKey(p.paidAt) === currentMonth),
-    [data.payments, currentMonth],
+  const paidRows = useMemo(
+    () =>
+      data.payments.filter((p) => {
+        if (p.status !== "paid" || !p.paidAt) return false;
+        if (selectedDay) return p.paidAt === selectedDay;
+        return monthKey(p.paidAt) === currentMonth;
+      }),
+    [data.payments, currentMonth, selectedDay],
   );
-  const rows = useMemo(() => groupPaidCollections(paidThisMonth), [paidThisMonth]);
-  const totalAmount = paidThisMonth.reduce((sum, p) => sum + p.amount, 0);
-  const studentCount = new Set(paidThisMonth.map((p) => p.studentId)).size;
+  const rows = useMemo(() => groupPaidCollections(paidRows), [paidRows]);
+  const totalAmount = paidRows.reduce((sum, p) => sum + p.amount, 0);
+  const studentCount = new Set(paidRows.map((p) => p.studentId)).size;
+  const heading = selectedDay ? `${formatDate(selectedDay)} tahsilatları` : `${formatMonthLong(currentMonth)} tahsilatları`;
+  const summaryLabel = selectedDay ? "Bu gün ödeme yapan" : "Bu ay ödeme yapan";
+  const emptyLabel = selectedDay ? "Seçilen günde tahsilat kaydı yok." : "Bu ay için henüz bir tahsilat kaydı yok.";
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">{formatMonthLong(currentMonth)} tahsilatları</h2>
-        <p className="text-sm text-slate-500">
-          Bu ay ödeme yapan {studentCount} öğrenci · Toplam {formatMoney(totalAmount)}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">{heading}</h2>
+          <p className="text-sm text-slate-500">
+            {summaryLabel} {studentCount} öğrenci · Toplam {formatMoney(totalAmount)}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className="input w-auto min-w-[160px] py-2 text-sm"
+            type="date"
+            value={selectedDay}
+            onChange={(e) => setSelectedDay(e.target.value)}
+            aria-label="Tahsilat günü"
+          />
+          {selectedDay ? (
+            <button type="button" className="btn-secondary py-2 text-xs" onClick={() => setSelectedDay("")}>
+              Ayın tamamı
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
@@ -113,7 +138,7 @@ export function PaymentsPage() {
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
-                    Bu ay için henüz bir tahsilat kaydı yok.
+                    {emptyLabel}
                   </td>
                 </tr>
               ) : null}
