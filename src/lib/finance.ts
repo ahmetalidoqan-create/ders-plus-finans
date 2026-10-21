@@ -655,6 +655,23 @@ function classroomRevenueGroup(classroom: string) {
   return foldTr(key).includes("deneme") ? DENEME_CLUB_LABEL : key;
 }
 
+export type ClassroomStudentCount = {
+  classroom: string;
+  studentCount: number;
+};
+
+export function getClassroomStudentCounts(data: AppData): ClassroomStudentCount[] {
+  const map = new Map<string, number>();
+  data.students.forEach((student) => {
+    if (student.status !== "active") return;
+    const key = classroomRevenueGroup(student.classroom);
+    map.set(key, (map.get(key) ?? 0) + 1);
+  });
+  return Array.from(map.entries())
+    .map(([classroom, studentCount]) => ({ classroom, studentCount }))
+    .sort((a, b) => b.studentCount - a.studentCount || a.classroom.localeCompare(b.classroom, "tr"));
+}
+
 export function getClassroomRevenueRows(data: AppData, month: string): ClassroomRevenueRow[] {
   const byClass = new Map<string, Student[]>();
   data.students.forEach((student) => {

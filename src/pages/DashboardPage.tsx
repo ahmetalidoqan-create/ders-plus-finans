@@ -8,14 +8,15 @@ import {
   Clock3,
   HandCoins,
   Receipt,
+  Users,
   UserPlus,
   Wallet,
 } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { addMonths, daysBetween, formatDate, formatMoney, formatMonthLong, formatPercent, monthKey, todayISO } from "@/lib/format";
 import {
+  getClassroomStudentCounts,
   getDashboardStats,
-  getExpenseBreakdown,
   getMonthlySeries,
   getOverdueByStudent,
   getUpcomingPayments,
@@ -31,8 +32,6 @@ import type { Student, StudentDraft } from "@/types";
 const RANGE_OPTIONS = [7, 15, 30] as const;
 type Range = (typeof RANGE_OPTIONS)[number];
 type ModalKind = "student" | "collection" | "expense" | null;
-
-const DONUT_COLORS = ["#f97316", "#38bdf8", "#a78bfa", "#94a3b8"];
 
 function changePercent(current: number, previous: number) {
   if (previous <= 0) return current > 0 ? 100 : 0;
@@ -56,8 +55,10 @@ export function DashboardPage() {
   const upcoming = useMemo(() => getUpcomingPayments(data, range), [data, range]);
   const overdue = useMemo(() => getOverdueByStudent(data), [data]);
   const series = useMemo(() => getMonthlySeries(data, 6, month), [data, month]);
+  const classrooms = useMemo(() => getClassroomStudentCounts(data), [data]);
   const monthLabel = formatMonthLong(month);
   const today = todayISO();
+  const totalClassroomStudents = classrooms.reduce((sum, row) => sum + row.studentCount, 0);
 
   const remainingStudents = useMemo(
     () =>
@@ -74,37 +75,11 @@ export function DashboardPage() {
     [data.payments, data.students, month],
   );
 
-  const monthExpenses = useMemo(
-    () => data.expenses.filter((expense) => monthKey(expense.date) === month),
-    [data.expenses, month],
-  );
-  const expenseBreakdown = useMemo(() => getExpenseBreakdown(monthExpenses), [monthExpenses]);
   const collectionRate = stats.expectedThisMonth > 0 ? (stats.realizedThisMonth / stats.expectedThisMonth) * 100 : 0;
   const remainingRate = stats.expectedThisMonth > 0 ? (stats.remainingThisMonth / stats.expectedThisMonth) * 100 : 0;
   const realizedChange = changePercent(stats.realizedThisMonth, previousStats.realizedThisMonth);
   const overdueChange = changePercent(stats.totalOverdueDebt, previousStats.totalOverdueDebt);
   const maxSeriesValue = Math.max(1, ...series.flatMap((item) => [item.expected, item.realized]));
-
-  const donutSlices = useMemo(() => {
-    const personnel = monthExpenses
-      .filter((expense) => expense.category === "Personel/Maaş")
-      .reduce((sum, expense) => sum + expense.amount, 0);
-    const rent = monthExpenses
-      .filter((expense) => expense.category === "Kira")
-      .reduce((sum, expense) => sum + expense.amount, 0);
-    const other = Math.max(0, stats.expensesThisMonth - personnel - rent);
-    const items = [
-      { label: "Tahsilatlar", amount: stats.realizedThisMonth, color: DONUT_COLORS[0] },
-      { label: "Personel Giderleri", amount: personnel, color: DONUT_COLORS[1] },
-      { label: "Kira", amount: rent, color: DONUT_COLORS[2] },
-      { label: "Diğer Giderler", amount: other, color: DONUT_COLORS[3] },
-    ].filter((item) => item.amount > 0);
-    const total = items.reduce((sum, item) => sum + item.amount, 0);
-    return {
-      total,
-      items: items.map((item) => ({ ...item, percent: total ? (item.amount / total) * 100 : 0 })),
-    };
-  }, [monthExpenses, stats.expensesThisMonth, stats.realizedThisMonth]);
 
   function findStudent(id: string): Student | undefined {
     return data.students.find((s) => s.id === id);
@@ -240,67 +215,25 @@ export function DashboardPage() {
           </div>
         </section>
 
-        <section className="card p-5">
+        <section className="card flex min-h-[320px] flex-col p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h3 className="font-semibold">Gelir - Gider Özeti</h3>
-            <span className="text-xs text-slate-500">{monthLabel}</span>
+            <h3 className="font-semibold">Sınıf Kartları</h3>
+            <span className="text-xs text-slate-500">{totalClassroomStudents} aktif öğrenci</span>
           </div>
-          <div className="flex flex-col items-center gap-6 sm:flex-row">
-            <div className="relative h-44 w-44 shrink-0">
-              <div
-                className="h-full w-full rounded-full"
-                style={{
-                  background: donutSlices.items.length
-                    ? `conic-gradient(${donutSlices.items
-                        .reduce<{ css: string[]; start: number }>(
-                          (acc, item) => {
-                            const end = acc.start + item.percent;
-                            acc.css.push(`${item.color} ${acc.start}% ${end}%`);
-                            acc.start = end;
-                            return acc;
-                          },
-                          { css: [], start: 0 },
-                        )
-                        .css.join(", ")})`
-                    : "#e2e8f0",
-                }}
-              />
-              <div className="absolute inset-8 flex flex-col items-center justify-center rounded-full bg-white text-center">
-                <p className="text-[11px] text-slate-500">Net Gelir</p>
-                <p className={`text-sm font-bold ${stats.netThisMonth >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                  {formatMoney(stats.netThisMonth)}
-                </p>
-              </div>
-            </div>
-            <ul className="w-full space-y-2.5 text-sm">
-              <li className="flex items-center justify-between gap-3">
-                <span className="flex items-center gap-2 text-slate-600">
-                  <span className="h-2.5 w-2.5 rounded-full bg-brand-500" /> Tahsilatlar
-                </span>
-                <span className="font-semibold text-slate-900">{formatMoney(stats.realizedThisMonth)}</span>
-              </li>
-              <li className="flex items-center justify-between gap-3">
-                <span className="flex items-center gap-2 text-slate-600">
-                  <span className="h-2.5 w-2.5 rounded-full bg-sky-400" /> Giderler
-                </span>
-                <span className="font-semibold text-slate-900">{formatMoney(-stats.expensesThisMonth)}</span>
-              </li>
-              {expenseBreakdown.slice(0, 3).map((item, index) => (
-                <li key={item.category} className="flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-2 text-slate-600">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: DONUT_COLORS[(index + 1) % DONUT_COLORS.length] }}
-                    />
-                    {item.category}
-                  </span>
-                  <span className="font-medium text-slate-700">{formatMoney(-item.amount)}</span>
-                </li>
-              ))}
-              {donutSlices.items.length === 0 ? (
-                <li className="text-slate-500">Bu ay için gelir veya gider yok.</li>
-              ) : null}
-            </ul>
+          <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto">
+            {classrooms.map((row) => (
+              <article key={row.classroom} className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
+                <div className="mb-2 inline-flex rounded-xl bg-white p-2 text-brand-600 shadow-sm">
+                  <Users size={16} />
+                </div>
+                <p className="truncate text-sm font-semibold text-slate-900">{row.classroom}</p>
+                <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{row.studentCount}</p>
+                <p className="text-xs text-slate-500">öğrenci</p>
+              </article>
+            ))}
+            {classrooms.length === 0 ? (
+              <p className="col-span-2 self-center text-center text-sm text-slate-500">Henüz sınıf kaydı yok.</p>
+            ) : null}
           </div>
         </section>
       </div>
