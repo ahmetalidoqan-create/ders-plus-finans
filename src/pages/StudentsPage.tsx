@@ -1,9 +1,17 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ChevronRight, FileText, Filter, Plus, Search } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { formatMoney } from "@/lib/format";
-import { getStudentFinance, isStudentFrozen, studentHasDebt, studentIsOverdue, studentStatusLabel } from "@/lib/finance";
+import {
+  classroomRevenueGroup,
+  getStudentFinance,
+  isStudentFrozen,
+  studentHasDebt,
+  studentIsOverdue,
+  studentMatchesClassroomGroup,
+  studentStatusLabel,
+} from "@/lib/finance";
 import { StudentFormModal } from "@/components/modals/StudentFormModal";
 import { StatementModal } from "@/components/modals/StatementModal";
 import { Avatar } from "@/components/Avatar";
@@ -11,8 +19,9 @@ import type { Student, StudentDraft } from "@/types";
 
 export function StudentsPage() {
   const { data, addStudent, updateStudent, deleteStudent } = useAppData();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState("");
-  const [classroomFilter, setClassroomFilter] = useState("all");
+  const classroomFilter = searchParams.get("sinif")?.trim() || "all";
   const [debtOnly, setDebtOnly] = useState(false);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -20,7 +29,10 @@ export function StudentsPage() {
   const [statementStudent, setStatementStudent] = useState<Student | null>(null);
 
   const classrooms = useMemo(
-    () => Array.from(new Set(data.students.map((s) => s.classroom))).sort(),
+    () =>
+      Array.from(new Set(data.students.map((s) => classroomRevenueGroup(s.classroom)))).sort((a, b) =>
+        a.localeCompare(b, "tr"),
+      ),
     [data.students],
   );
 
@@ -37,12 +49,19 @@ export function StudentsPage() {
           student.parentPhone.toLowerCase().includes(q) ||
           student.email.toLowerCase().includes(q) ||
           student.course.toLowerCase().includes(q);
-        const matchesClassroom = classroomFilter === "all" || student.classroom === classroomFilter;
+        const matchesClassroom = studentMatchesClassroomGroup(student.classroom, classroomFilter);
         const matchesDebt = !debtOnly || studentHasDebt(finance);
         const matchesOverdue = !overdueOnly || studentIsOverdue(finance);
         return matchesQuery && matchesClassroom && matchesDebt && matchesOverdue;
       });
   }, [data.students, data.payments, query, classroomFilter, debtOnly, overdueOnly]);
+
+  function setClassroomFilter(value: string) {
+    const next = new URLSearchParams(searchParams);
+    if (!value || value === "all") next.delete("sinif");
+    else next.set("sinif", value);
+    setSearchParams(next, { replace: true });
+  }
 
   function handleSubmit(draft: StudentDraft, id?: string) {
     if (id) updateStudent({ ...draft, id });
@@ -76,6 +95,9 @@ export function StudentsPage() {
           onChange={(e) => setClassroomFilter(e.target.value)}
         >
           <option value="all">Tüm sınıflar</option>
+          {classroomFilter !== "all" && !classrooms.includes(classroomFilter) ? (
+            <option value={classroomFilter}>{classroomFilter}</option>
+          ) : null}
           {classrooms.map((c) => (
             <option key={c} value={c}>
               {c}

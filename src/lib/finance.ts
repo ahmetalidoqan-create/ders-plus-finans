@@ -648,11 +648,16 @@ export type ClassroomRevenueRow = {
   ratio: number;
 };
 
-const DENEME_CLUB_LABEL = "Deneme Kulübü";
+export const DENEME_CLUB_LABEL = "Deneme Kulübü";
 
-function classroomRevenueGroup(classroom: string) {
+export function classroomRevenueGroup(classroom: string) {
   const key = classroom.trim() || "Sınıf belirtilmedi";
   return foldTr(key).includes("deneme") ? DENEME_CLUB_LABEL : key;
+}
+
+export function studentMatchesClassroomGroup(classroom: string, filter: string) {
+  if (!filter || filter === "all") return true;
+  return classroomRevenueGroup(classroom) === filter;
 }
 
 export type ClassroomStudentCount = {

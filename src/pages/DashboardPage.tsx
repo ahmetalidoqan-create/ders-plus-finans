@@ -186,8 +186,8 @@ export function DashboardPage() {
         </article>
       </div>
 
-      <div className="grid items-start gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className="card p-5">
+      <div className="grid items-stretch gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="card flex min-h-[320px] flex-col p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-semibold">Tahsilat Grafiği</h3>
             <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
@@ -200,11 +200,11 @@ export function DashboardPage() {
               <span>Son 6 ay</span>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <div className="flex min-w-[420px] items-end justify-between gap-3 px-1 pb-1 pt-2" style={{ height: 220 }}>
+          <div className="flex min-h-0 flex-1 flex-col justify-end overflow-x-auto">
+            <div className="flex min-w-[420px] flex-1 items-end justify-between gap-3 px-1 pb-1 pt-2">
               {series.map((item) => (
-                <div key={item.key} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                  <div className="flex h-40 w-full items-end justify-center gap-1.5">
+                <div key={item.key} className="flex h-full min-h-[220px] flex-1 flex-col items-center justify-end gap-2">
+                  <div className="flex h-full w-full items-end justify-center gap-1.5">
                     <div
                       className="w-3.5 rounded-t bg-brand-400 sm:w-4"
                       style={{ height: `${Math.max(4, (item.expected / maxSeriesValue) * 100)}%` }}
@@ -223,24 +223,25 @@ export function DashboardPage() {
           </div>
         </section>
 
-        <section className="card p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
+        <section className="card flex min-h-[320px] flex-col p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="font-semibold">Sınıf Kartları</h3>
             <span className="text-xs text-slate-500">{totalClassroomStudents} aktif öğrenci</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-3 gap-2.5">
             {classrooms.map((row, index) => (
-              <article
+              <Link
                 key={row.classroom}
-                className={`rounded-xl px-2.5 py-2 ${CLASS_CARD_TONES[index % CLASS_CARD_TONES.length]}`}
+                to={`/ogrenciler?sinif=${encodeURIComponent(row.classroom)}`}
+                className={`flex h-full min-h-0 flex-col justify-center rounded-xl px-3 py-3 transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${CLASS_CARD_TONES[index % CLASS_CARD_TONES.length]}`}
               >
-                <p className="truncate text-[11px] font-semibold leading-tight">{row.classroom}</p>
-                <p className="mt-1 text-lg font-bold leading-none tracking-tight">{row.studentCount}</p>
-                <p className="mt-0.5 text-[10px] opacity-70">öğrenci</p>
-              </article>
+                <p className="truncate text-xs font-semibold leading-tight">{row.classroom}</p>
+                <p className="mt-1.5 text-2xl font-bold leading-none tracking-tight">{row.studentCount}</p>
+                <p className="mt-1 text-[11px] opacity-70">öğrenci</p>
+              </Link>
             ))}
             {classrooms.length === 0 ? (
-              <p className="col-span-3 py-6 text-center text-sm text-slate-500">Henüz sınıf kaydı yok.</p>
+              <p className="col-span-3 self-center py-6 text-center text-sm text-slate-500">Henüz sınıf kaydı yok.</p>
             ) : null}
           </div>
         </section>
