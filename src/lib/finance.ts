@@ -50,7 +50,7 @@ export function withPaymentStatus(payment: Payment, students: Student[]): Paymen
   return { ...payment, status: payment.dueDate < todayISO() ? "overdue" : "pending" };
 }
 
-function isPaymentPaused(payment: Payment, students: Student[]) {
+export function isPaymentPaused(payment: Payment, students: Student[]) {
   if (payment.status === "paid") return false;
   return isStudentFrozen(students.find((item) => item.id === payment.studentId));
 }
@@ -482,10 +482,9 @@ export type MonthlySeriesPoint = {
   expenses: number;
 };
 
-export function getMonthlySeries(data: AppData, monthsBack = 6): MonthlySeriesPoint[] {
-  const today = todayISO();
-  const year = Number(today.slice(0, 4));
-  const month = Number(today.slice(5, 7));
+export function getMonthlySeries(data: AppData, monthsBack = 6, throughMonth = monthKey(todayISO())): MonthlySeriesPoint[] {
+  const year = Number(throughMonth.slice(0, 4));
+  const month = Number(throughMonth.slice(5, 7));
   const keys: string[] = [];
   for (let i = monthsBack - 1; i >= 0; i -= 1) {
     const d = new Date(year, month - 1 - i, 1);
