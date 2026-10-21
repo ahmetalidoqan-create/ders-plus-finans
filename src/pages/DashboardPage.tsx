@@ -8,7 +8,6 @@ import {
   Clock3,
   HandCoins,
   Receipt,
-  Users,
   UserPlus,
   Wallet,
 } from "lucide-react";
@@ -42,6 +41,15 @@ function shortMonth(key: string) {
   const [year, month] = key.split("-").map(Number);
   return new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(new Date(year, (month || 1) - 1, 1));
 }
+
+const CLASS_CARD_TONES = [
+  "bg-brand-50 text-brand-700",
+  "bg-sky-50 text-sky-700",
+  "bg-amber-50 text-amber-700",
+  "bg-emerald-50 text-emerald-700",
+  "bg-violet-50 text-violet-700",
+  "bg-rose-50 text-rose-700",
+];
 
 export function DashboardPage() {
   const { data, addStudent, collectFromStudent, collectInstallment, addExpense } = useAppData();
@@ -178,7 +186,7 @@ export function DashboardPage() {
         </article>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid items-start gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <section className="card p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-semibold">Tahsilat Grafiği</h3>
@@ -193,10 +201,10 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <div className="flex min-w-[420px] items-end justify-between gap-3 px-1 pb-1 pt-2" style={{ height: 240 }}>
+            <div className="flex min-w-[420px] items-end justify-between gap-3 px-1 pb-1 pt-2" style={{ height: 220 }}>
               {series.map((item) => (
                 <div key={item.key} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                  <div className="flex h-48 w-full items-end justify-center gap-1.5">
+                  <div className="flex h-40 w-full items-end justify-center gap-1.5">
                     <div
                       className="w-3.5 rounded-t bg-brand-400 sm:w-4"
                       style={{ height: `${Math.max(4, (item.expected / maxSeriesValue) * 100)}%` }}
@@ -215,24 +223,24 @@ export function DashboardPage() {
           </div>
         </section>
 
-        <section className="card flex min-h-[320px] flex-col p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
+        <section className="card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="font-semibold">Sınıf Kartları</h3>
             <span className="text-xs text-slate-500">{totalClassroomStudents} aktif öğrenci</span>
           </div>
-          <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto">
-            {classrooms.map((row) => (
-              <article key={row.classroom} className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
-                <div className="mb-2 inline-flex rounded-xl bg-white p-2 text-brand-600 shadow-sm">
-                  <Users size={16} />
-                </div>
-                <p className="truncate text-sm font-semibold text-slate-900">{row.classroom}</p>
-                <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{row.studentCount}</p>
-                <p className="text-xs text-slate-500">öğrenci</p>
+          <div className="grid grid-cols-3 gap-2">
+            {classrooms.map((row, index) => (
+              <article
+                key={row.classroom}
+                className={`rounded-xl px-2.5 py-2 ${CLASS_CARD_TONES[index % CLASS_CARD_TONES.length]}`}
+              >
+                <p className="truncate text-[11px] font-semibold leading-tight">{row.classroom}</p>
+                <p className="mt-1 text-lg font-bold leading-none tracking-tight">{row.studentCount}</p>
+                <p className="mt-0.5 text-[10px] opacity-70">öğrenci</p>
               </article>
             ))}
             {classrooms.length === 0 ? (
-              <p className="col-span-2 self-center text-center text-sm text-slate-500">Henüz sınıf kaydı yok.</p>
+              <p className="col-span-3 py-6 text-center text-sm text-slate-500">Henüz sınıf kaydı yok.</p>
             ) : null}
           </div>
         </section>
