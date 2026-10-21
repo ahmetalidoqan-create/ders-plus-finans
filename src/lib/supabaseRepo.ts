@@ -308,6 +308,14 @@ export async function loadStudentPhotosFromSupabase(): Promise<Map<string, strin
   );
 }
 
+export async function removeStudentFromSupabase(studentId: string) {
+  await supabase.from("receipts").delete().eq("student_id", studentId);
+  const { error: paymentError } = await supabase.from("payments").delete().eq("student_id", studentId);
+  if (paymentError) throw paymentError;
+  const { error } = await supabase.from("students").delete().eq("id", studentId);
+  if (error) throw error;
+}
+
 export async function syncAppDataToSupabase(data: AppData, options?: { includePhotos?: boolean }) {
   const includePhotos = options?.includePhotos ?? true;
   const teachers = withFixedTeachers(data.teachers).map(teacherRow);

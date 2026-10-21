@@ -25,6 +25,7 @@ import {
   formatSupabaseSyncError,
   loadAppDataFromSupabase,
   loadStudentPhotosFromSupabase,
+  removeStudentFromSupabase,
   subscribeToFinanceChanges,
   syncAppDataToSupabase,
 } from "@/lib/supabaseRepo";
@@ -163,6 +164,15 @@ function keepExistingPhotos(incoming: AppData, previous: AppData): AppData {
   };
 }
 
+function withoutRemovedStudents(data: AppData, removedIds: Set<string>): AppData {
+  if (!removedIds.size) return data;
+  return {
+    ...data,
+    students: data.students.filter((student) => !removedIds.has(student.id)),
+    payments: data.payments.filter((payment) => !removedIds.has(payment.studentId)),
+  };
+}
+
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(() => readCachedAppData() ?? emptyAppData());
   const [loading, setLoading] = useState(() => {
@@ -176,23 +186,49 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const writingRef = useRef(false);
   const photosReadyRef = useRef(false);
   const writeGenRef = useRef(0);
+  const dataRef = useRef(data);
+  const pendingSyncRef = useRef<AppData | null>(null);
+  const syncingRef = useRef(false);
+  const removedStudentIdsRef = useRef(new Set<string>());
+  dataRef.current = data;
 
-  const persist = useCallback((next: AppData) => {
-    writeGenRef.current += 1;
-    setData(next);
-    writeCachedAppData(next);
+  const runSync = useCallback(async () => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
     writingRef.current = true;
-    void syncAppDataToSupabase(next, { includePhotos: photosReadyRef.current })
-      .then(() => setSyncError(null))
-      .catch((error: unknown) => {
-        setSyncError(formatSupabaseSyncError(error));
-      })
-      .finally(() => {
-        window.setTimeout(() => {
-          writingRef.current = false;
-        }, 400);
-      });
+    try {
+      while (pendingSyncRef.current) {
+        const snapshot = withoutRemovedStudents(pendingSyncRef.current, removedStudentIdsRef.current);
+        pendingSyncRef.current = null;
+        const gen = writeGenRef.current;
+        try {
+          await syncAppDataToSupabase(snapshot, { includePhotos: photosReadyRef.current });
+          if (gen === writeGenRef.current) setSyncError(null);
+        } catch (error: unknown) {
+          if (gen === writeGenRef.current) setSyncError(formatSupabaseSyncError(error));
+        }
+      }
+    } finally {
+      syncingRef.current = false;
+      window.setTimeout(() => {
+        if (!pendingSyncRef.current) writingRef.current = false;
+      }, 400);
+    }
+    if (pendingSyncRef.current) void runSync();
   }, []);
+
+  const persist = useCallback(
+    (next: AppData) => {
+      const snapshot = withoutRemovedStudents(next, removedStudentIdsRef.current);
+      writeGenRef.current += 1;
+      setData(snapshot);
+      writeCachedAppData(snapshot);
+      pendingSyncRef.current = snapshot;
+      writingRef.current = true;
+      void runSync();
+    },
+    [runSync],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -230,23 +266,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       try {
         const remote = migrateLoadedData(await loadAppDataFromSupabase());
         if (cancelled || writingRef.current || gen !== writeGenRef.current) return;
-        const next = ensureFixedExpenses(remote);
+        const next = withoutRemovedStudents(ensureFixedExpenses(remote), removedStudentIdsRef.current);
         setData((prev) => keepExistingPhotos(next, prev));
         writeCachedAppData(next);
         setSyncError(null);
         setLoading(false);
         if (next !== remote) {
+          pendingSyncRef.current = next;
           writingRef.current = true;
-          void syncAppDataToSupabase(next, { includePhotos: photosReadyRef.current })
-            .then(() => setSyncError(null))
-            .catch((error: unknown) => {
-              if (!cancelled) setSyncError(formatSupabaseSyncError(error));
-            })
-            .finally(() => {
-              window.setTimeout(() => {
-                writingRef.current = false;
-              }, 400);
-            });
+          void runSync();
         }
         void applyPhotos();
       } catch (error: unknown) {
@@ -271,7 +299,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(debounce);
       unsubscribe();
     };
-  }, []);
+  }, [runSync]);
 
   const addStudent = useCallback(
     (student: StudentDraft) => {
@@ -294,13 +322,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const deleteStudent = useCallback(
     (id: string) => {
+      removedStudentIdsRef.current.add(id);
+      const current = dataRef.current;
       persist({
-        ...data,
-        students: data.students.filter((s) => s.id !== id),
-        payments: data.payments.filter((p) => p.studentId !== id),
+        ...current,
+        students: current.students.filter((s) => s.id !== id),
+        payments: current.payments.filter((p) => p.studentId !== id),
+      });
+      void removeStudentFromSupabase(id).catch((error: unknown) => {
+        setSyncError(formatSupabaseSyncError(error) || "Öğrenci silinemedi.");
       });
     },
-    [data, persist],
+    [persist],
   );
 
   const addPayment = useCallback(
